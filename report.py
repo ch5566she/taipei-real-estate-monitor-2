@@ -17,6 +17,7 @@ import json
 import os
 import re
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from statistics import mean, median
 
 
@@ -951,7 +952,7 @@ def build_report_data(records):
     report = {
 
         "generated_at":
-            datetime.now().strftime(
+            datetime.now(ZoneInfo("Asia/Taipei")).strftime(
                 "%Y-%m-%d %H:%M:%S"
             ),
 
@@ -1530,7 +1531,7 @@ def save_reports(report):
         exist_ok=True
     )
 
-    today = datetime.now().strftime(
+    today = datetime.now(ZoneInfo("Asia/Taipei")).strftime(
         "%Y-%m-%d"
     )
 
