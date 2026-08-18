@@ -1,0 +1,125 @@
+{
+  "generated_at": "2026-08-18 14:41:23",
+  "districts": {
+    "士林區": {
+      "stats": {
+        "count": 44,
+        "average_price": 75.08863636363637,
+        "median_price": 70.07499999999999,
+        "max_price": 168.53,
+        "min_price": 28.76,
+        "average_total": 2731.7272727272725,
+        "average_area": 38.42,
+        "normal_average": 72.91558139534884,
+        "abnormal_count": 1,
+        "q1": 55.1775,
+        "q3": 95.18,
+        "iqr_lower": -4.826250000000009,
+        "iqr_upper": 155.18375000000003
+      },
+      "trend": {
+        "direction": "資料不足",
+        "change": null,
+        "confidence": "低"
+      },
+      "months": [],
+      "routes": [
+        {
+          "route": "中山北路",
+          "count": 11,
+          "average": 75.2990909090909,
+          "median": 66.59,
+          "heat": 828.29
+        },
+        {
+          "route": "天母西路50",
+          "count": 6,
+          "average": 98.72666666666666,
+          "median": 98.625,
+          "heat": 592.3599999999999
+        },
+        {
+          "route": "德行東路109",
+          "count": 2,
+          "average": 118.47,
+          "median": 118.47,
+          "heat": 236.94
+        },
+        {
+          "route": "承德路",
+          "count": 3,
+          "average": 72.43,
+          "median": 87.33,
+          "heat": 217.29000000000002
+        },
+        {
+          "route": "克強路10",
+          "count": 2,
+          "average": 60.379999999999995,
+          "median": 60.379999999999995,
+          "heat": 120.75999999999999
+        },
+        {
+          "route": "美崙街",
+          "count": 3,
+          "average": 36.916666666666664,
+          "median": 36.91,
+          "heat": 110.75
+        }
+      ]
+    },
+    "北投區": {
+      "stats": {
+        "count": 31,
+        "average_price": 74.03967741935485,
+        "median_price": 71.83,
+        "max_price": 122.83,
+        "min_price": 27.55,
+        "average_total": 2517.7419354838707,
+        "average_area": 38.57064516129032,
+        "normal_average": 74.03967741935485,
+        "abnormal_count": 0,
+        "q1": 52.480000000000004,
+        "q3": 92.945,
+        "iqr_lower": -8.21749999999998,
+        "iqr_upper": 153.64249999999998
+      },
+      "trend": {
+        "direction": "資料不足",
+        "change": null,
+        "confidence": "低"
+      },
+      "months": [],
+      "routes": [
+        {
+          "route": "石牌路",
+          "count": 3,
+          "average": 87.7,
+          "median": 92.63,
+          "heat": 263.1
+        },
+        {
+          "route": "吉利街",
+          "count": 2,
+          "average": 74.185,
+          "median": 74.185,
+          "heat": 148.37
+        },
+        {
+          "route": "中和街",
+          "count": 2,
+          "average": 57.095,
+          "median": 57.095,
+          "heat": 114.19
+        },
+        {
+          "route": "中央北路",
+          "count": 2,
+          "average": 38.39,
+          "median": 38.39,
+          "heat": 76.78
+        }
+      ]
+    }
+  }
+}
