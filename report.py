@@ -998,8 +998,11 @@ def build_report_data(records):
             "months": months,
 
             "routes": routes,
-
-        }
+            "latest_transaction_date": max(
+                (item.get("date") for item in items if item.get("date")),
+                default=None
+            ),
+            }
 
     return report
 
