@@ -1121,9 +1121,9 @@ latest_transaction_date = (
 
 cards = ""
 
-    for district, data in report[
-        "districts"
-    ].items():
+for district, data in report[
+    "districts"
+].items():
 
         stats = data["stats"]
 
