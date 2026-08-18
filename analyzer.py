@@ -173,8 +173,21 @@ def analyze_district(records, district):
         )
 
         # 沒有交易單價就無法進行房價分析
+        # ========================================================
+        # 住宅交易有效資料判斷
+        # ========================================================
+
+        # 沒有單價 → 排除
         if unit_price is None or unit_price <= 0:
-            continue
+        continue
+
+        # 沒有總價 → 排除
+        if total_price is None or total_price <= 0:
+        continue
+
+        # 沒有建物面積 → 排除土地等非住宅建物交易
+        if area is None or area <= 0:
+        continue
 
         district_records.append({
             "row": row,
