@@ -1,30 +1,30 @@
-# -*- coding: utf-8 -*-
+name: 執行房市監控程式
 
-"""
-台北市士林區／北投區房市監控系統
-主程式
+on:
+  workflow_dispatch:
 
-目前版本：
-建立基本程式架構，後續會逐步加入
-房屋資料蒐集、價格分析與每日自動報告功能。
-"""
+jobs:
+  run-monitor:
+    runs-on: ubuntu-latest
 
-from datetime import datetime
+    steps:
+      - name: 下載專案程式
+        uses: actions/checkout@v4
 
+      - name: 設定 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-def main():
-    """程式主入口"""
+      - name: 執行主程式
+        run: python main.py
 
-    print("=" * 60)
-    print("台北市士林區／北投區房市監控系統")
-    print("=" * 60)
+      - name: 執行房價資料蒐集
+        run: python data_collector.py
 
-    now = datetime.now()
-
-    print(f"程式啟動時間：{now}")
-    print("系統目前已成功啟動。")
-    print("下一階段將加入房市資料蒐集功能。")
-
-
-if __name__ == "__main__":
-    main()
+      - name: 保存房價資料
+        uses: actions/upload-artifact@v4
+        with:
+          name: taipei-real-estate-data
+          path: data/taipei_transactions.csv
+          retention-days: 7
