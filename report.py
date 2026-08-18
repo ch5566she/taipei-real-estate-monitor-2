@@ -1119,7 +1119,7 @@ latest_transaction_date = (
     else "無資料"
 )
 
-    cards = ""
+cards = ""
 
     for district, data in report[
         "districts"
