@@ -1107,6 +1107,17 @@ def create_html(report):
     generated_at = report[
         "generated_at"
     ]
+    latest_dates = [
+    data.get("latest_transaction_date")
+    for data in report["districts"].values()
+    if data.get("latest_transaction_date")
+]
+
+latest_transaction_date = (
+    max(latest_dates)
+    if latest_dates
+    else "無資料"
+)
 
     cards = ""
 
@@ -1492,6 +1503,11 @@ footer {{
 <p>
 產生時間：
 {html_escape(generated_at)}
+</p>
+
+<p>
+房價資料截至：
+{html_escape(latest_transaction_date)}
 </p>
 
 </header>
