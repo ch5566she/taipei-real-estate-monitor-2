@@ -1,0 +1,334 @@
+{
+  "generated_at": "2026-08-19 03:27:51",
+  "districts": {
+    "士林區": {
+      "stats": {
+        "count": 44,
+        "average_price": 75.08863636363637,
+        "median_price": 70.07499999999999,
+        "max_price": 168.53,
+        "min_price": 28.76,
+        "average_total": 2731.7272727272725,
+        "average_area": 38.42,
+        "normal_average": 72.91558139534884,
+        "abnormal_count": 1,
+        "q1": 55.1775,
+        "q3": 95.18,
+        "iqr_lower": -4.826250000000009,
+        "iqr_upper": 155.18375000000003
+      },
+      "trend": {
+        "direction": "下降",
+        "change": -19.07126605904551,
+        "confidence": "低",
+        "period": "最近3個月",
+        "latest_count": 4,
+        "window_count": 24,
+        "warning": "最近月份僅 4 筆交易，近期趨勢僅供參考，不宜直接解讀為整體房價走勢。"
+      },
+      "months": [
+        {
+          "month": "2021-01",
+          "count": 6,
+          "average": 98.72666666666666,
+          "median": 98.625,
+          "change": null
+        },
+        {
+          "month": "2021-04",
+          "count": 1,
+          "average": 85.77,
+          "median": 85.77,
+          "change": -13.123776082112226
+        },
+        {
+          "month": "2025-02",
+          "count": 1,
+          "average": 99.85,
+          "median": 99.85,
+          "change": 16.415996269091757
+        },
+        {
+          "month": "2025-11",
+          "count": 2,
+          "average": 65.86,
+          "median": 65.86,
+          "change": -34.04106159238858
+        },
+        {
+          "month": "2025-12",
+          "count": 3,
+          "average": 66.34333333333333,
+          "median": 73.87,
+          "change": 0.7338799473630949
+        },
+        {
+          "month": "2026-01",
+          "count": 1,
+          "average": 86.44,
+          "median": 86.44,
+          "change": 30.2919157915892
+        },
+        {
+          "month": "2026-02",
+          "count": 1,
+          "average": 65.52,
+          "median": 65.52,
+          "change": -24.20175844516428
+        },
+        {
+          "month": "2026-03",
+          "count": 1,
+          "average": 90.22,
+          "median": 90.22,
+          "change": 37.6984126984127
+        },
+        {
+          "month": "2026-04",
+          "count": 4,
+          "average": 61.84,
+          "median": 58.480000000000004,
+          "change": -31.45643981378851
+        },
+        {
+          "month": "2026-05",
+          "count": 16,
+          "average": 73.10875,
+          "median": 67.57,
+          "change": 18.222428848641652
+        },
+        {
+          "month": "2026-06",
+          "count": 4,
+          "average": 74.57,
+          "median": 78.86,
+          "change": 1.9987347615709372
+        },
+        {
+          "month": "2026-07",
+          "count": 4,
+          "average": 59.4025,
+          "median": 60.045,
+          "change": -20.33994904116936
+        }
+      ],
+      "routes": [
+        {
+          "route": "天母西路",
+          "count": 6,
+          "average": 98.72666666666666,
+          "median": 98.625,
+          "heat": 592.3599999999999
+        },
+        {
+          "route": "中山北路七段",
+          "count": 6,
+          "average": 70.615,
+          "median": 66.135,
+          "heat": 423.68999999999994
+        },
+        {
+          "route": "中山北路六段",
+          "count": 5,
+          "average": 80.92,
+          "median": 70.57,
+          "heat": 404.6
+        },
+        {
+          "route": "文林路",
+          "count": 3,
+          "average": 86.49666666666667,
+          "median": 85.77,
+          "heat": 259.49
+        },
+        {
+          "route": "德行東路",
+          "count": 2,
+          "average": 118.47,
+          "median": 118.47,
+          "heat": 236.94
+        },
+        {
+          "route": "承德路四段",
+          "count": 3,
+          "average": 72.43,
+          "median": 87.33,
+          "heat": 217.29000000000002
+        },
+        {
+          "route": "士東路",
+          "count": 3,
+          "average": 55.00333333333333,
+          "median": 66.67,
+          "heat": 165.01
+        },
+        {
+          "route": "克強路",
+          "count": 2,
+          "average": 60.379999999999995,
+          "median": 60.379999999999995,
+          "heat": 120.75999999999999
+        },
+        {
+          "route": "美崙街",
+          "count": 3,
+          "average": 36.916666666666664,
+          "median": 36.91,
+          "heat": 110.75
+        },
+        {
+          "route": "中正路",
+          "count": 2,
+          "average": 50.4,
+          "median": 50.4,
+          "heat": 100.8
+        }
+      ],
+      "latest_transaction_date": [
+        2026,
+        7,
+        15
+      ]
+    },
+    "北投區": {
+      "stats": {
+        "count": 31,
+        "average_price": 74.03967741935485,
+        "median_price": 71.83,
+        "max_price": 122.83,
+        "min_price": 27.55,
+        "average_total": 2517.7419354838707,
+        "average_area": 38.57064516129032,
+        "normal_average": 74.03967741935485,
+        "abnormal_count": 0,
+        "q1": 52.480000000000004,
+        "q3": 92.945,
+        "iqr_lower": -8.21749999999998,
+        "iqr_upper": 153.64249999999998
+      },
+      "trend": {
+        "direction": "上升",
+        "change": 22.745780342361282,
+        "confidence": "中",
+        "period": "最近3個月",
+        "latest_count": 7,
+        "window_count": 24,
+        "warning": "最近月份 7 筆交易，樣本量中等，建議搭配路段與住宅類型觀察。"
+      },
+      "months": [
+        {
+          "month": "2024-12",
+          "count": 2,
+          "average": 120.345,
+          "median": 120.345,
+          "change": null
+        },
+        {
+          "month": "2025-05",
+          "count": 1,
+          "average": 121.41,
+          "median": 121.41,
+          "change": 0.8849557522123874
+        },
+        {
+          "month": "2026-01",
+          "count": 1,
+          "average": 61.84,
+          "median": 61.84,
+          "change": -49.0651511407627
+        },
+        {
+          "month": "2026-03",
+          "count": 1,
+          "average": 92.63,
+          "median": 92.63,
+          "change": 49.78978007761965
+        },
+        {
+          "month": "2026-04",
+          "count": 2,
+          "average": 80.94,
+          "median": 80.94,
+          "change": -12.620101479002482
+        },
+        {
+          "month": "2026-05",
+          "count": 3,
+          "average": 48.83,
+          "median": 39.68,
+          "change": -39.671361502347416
+        },
+        {
+          "month": "2026-06",
+          "count": 14,
+          "average": 66.24857142857142,
+          "median": 60.995,
+          "change": 35.67186448611802
+        },
+        {
+          "month": "2026-07",
+          "count": 7,
+          "average": 77.54428571428572,
+          "median": 77.21,
+          "change": 17.050502436710243
+        }
+      ],
+      "routes": [
+        {
+          "route": "文林北路",
+          "count": 3,
+          "average": 120.7,
+          "median": 121.41,
+          "heat": 362.1
+        },
+        {
+          "route": "泉源路",
+          "count": 4,
+          "average": 70.185,
+          "median": 73.215,
+          "heat": 280.74
+        },
+        {
+          "route": "石牌路二段",
+          "count": 3,
+          "average": 87.7,
+          "median": 92.63,
+          "heat": 263.1
+        },
+        {
+          "route": "吉利街",
+          "count": 2,
+          "average": 74.185,
+          "median": 74.185,
+          "heat": 148.37
+        },
+        {
+          "route": "溫泉路",
+          "count": 2,
+          "average": 61.91,
+          "median": 61.91,
+          "heat": 123.82
+        },
+        {
+          "route": "中和街",
+          "count": 2,
+          "average": 57.095,
+          "median": 57.095,
+          "heat": 114.19
+        },
+        {
+          "route": "中央北路二段",
+          "count": 2,
+          "average": 38.39,
+          "median": 38.39,
+          "heat": 76.78
+        }
+      ],
+      "latest_transaction_date": [
+        2026,
+        7,
+        28
+      ]
+    }
+  }
+}
