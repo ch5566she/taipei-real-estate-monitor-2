@@ -1108,22 +1108,22 @@ def create_html(report):
         "generated_at"
     ]
     latest_dates = [
-    data.get("latest_transaction_date")
-    for data in report["districts"].values()
-    if data.get("latest_transaction_date")
-]
+        data.get("latest_transaction_date")
+        for data in report["districts"].values()
+        if data.get("latest_transaction_date")
+    ]
 
-latest_transaction_date = (
-    max(latest_dates)
-    if latest_dates
-    else "無資料"
-)
+    latest_transaction_date = (
+        max(latest_dates)
+        if latest_dates
+        else "無資料"
+    )
 
-cards = ""
+    cards = ""
 
-for district, data in report[
-    "districts"
-].items():
+    for district, data in report[
+        "districts"
+    ].items():
 
         stats = data["stats"]
 
