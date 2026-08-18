@@ -2,26 +2,13 @@
 
 """
 台北市士林區／北投區房市監控系統
-
 第四階段：住宅買賣房價分析
 
-功能：
-1. 讀取 data/taipei_transactions.csv
-2. 只分析士林區、北投區
-3. 只分析「買賣」
-4. 只分析住宅類型
-5. 自動抓取單價 pu_area
-6. 排除空白、0、無效單價
-7. 計算：
-   - 成交筆數
-   - 平均單價
-   - 中位數單價
-   - 最高單價
-   - 最低單價
-   - 平均總價
-   - 平均建物面積
-8. 統計住宅類型
-9. 顯示最高／最低單價案例
+正確資料欄位：
+uprice = 交易單價（萬元／坪）
+tprice = 交易總價（萬元）
+farea  = 建物移轉總面積（坪）
+pu_area = 共有部分面積（不作為交易單價）
 """
 
 import csv
@@ -47,7 +34,7 @@ TARGET_DISTRICTS = {
 
 def to_float(value):
     """
-    將文字轉成數字。
+    將 CSV 欄位轉成數字。
     無法轉換時回傳 None。
     """
 
@@ -59,13 +46,28 @@ def to_float(value):
     if value == "":
         return None
 
-    # 移除常見符號
+    # 常見無效值
+    invalid_values = {
+        "無",
+        "無資料",
+        "N/A",
+        "NA",
+        "None",
+        "null",
+        "-",
+        "--",
+    }
+
+    if value in invalid_values:
+        return None
+
+    # 移除千分位逗號
     value = value.replace(",", "")
-    value = value.replace(" ", "")
 
     try:
         return float(value)
-    except ValueError:
+
+    except (ValueError, TypeError):
         return None
 
 
@@ -74,10 +76,6 @@ def to_float(value):
 # ============================================================
 
 def load_data():
-    """
-    讀取實價登錄 CSV。
-    只保留士林區、北投區。
-    """
 
     print()
     print("=" * 60)
@@ -85,7 +83,9 @@ def load_data():
     print("=" * 60)
 
     if not os.path.exists(INPUT_FILE):
+
         print(f"找不到資料檔案：{INPUT_FILE}")
+
         return []
 
     records = []
@@ -99,13 +99,11 @@ def load_data():
 
         reader = csv.DictReader(csvfile)
 
-        # 顯示 CSV 欄位
-        fieldnames = reader.fieldnames or []
+        print(f"資料欄位數：{len(reader.fieldnames or [])}")
 
-        print(f"資料欄位數：{len(fieldnames)}")
-
-        print("資料欄位：")
-        print(", ".join(fieldnames))
+        if reader.fieldnames:
+            print("資料欄位：")
+            print(", ".join(reader.fieldnames))
 
         for row in reader:
 
@@ -122,47 +120,15 @@ def load_data():
 
 
 # ============================================================
-# 找單價欄位
-# ============================================================
-
-def get_unit_price(row):
-    """
-    取得單價。
-
-    優先使用：
-    1. pu_area
-
-    如果未來資料欄位名稱改變，
-    再嘗試其他可能欄位。
-    """
-
-    possible_fields = [
-        "pu_area",
-        "uprice",
-        "unit_price",
-        "unitprice",
-    ]
-
-    for field in possible_fields:
-
-        value = to_float(
-            row.get(field)
-        )
-
-        if value is not None and value > 0:
-            return value
-
-    return None
-
-
-# ============================================================
-# 房屋分析
+# 分析單一行政區
 # ============================================================
 
 def analyze_district(records, district):
-    """
-    分析指定行政區。
-    """
+
+    print()
+    print("=" * 60)
+    print(f"{district} 房價分析")
+    print("=" * 60)
 
     district_records = []
 
@@ -175,9 +141,9 @@ def analyze_district(records, district):
         if row_district != district:
             continue
 
-        # ====================================================
+        # ----------------------------------------------------
         # 只分析「買賣」
-        # ====================================================
+        # ----------------------------------------------------
 
         case_type = str(
             row.get("case_t", "")
@@ -186,30 +152,29 @@ def analyze_district(records, district):
         if case_type != "買賣":
             continue
 
-        # ====================================================
-        # 單價
-        # ====================================================
+        # ----------------------------------------------------
+        # 正確欄位
+        #
+        # uprice = 交易單價
+        # tprice = 交易總價
+        # farea  = 建物移轉面積
+        # ----------------------------------------------------
 
-        unit_price = get_unit_price(row)
-
-        if unit_price is None or unit_price <= 0:
-            continue
-
-        # ====================================================
-        # 總價
-        # ====================================================
+        unit_price = to_float(
+            row.get("uprice")
+        )
 
         total_price = to_float(
-            row.get("price")
+            row.get("tprice")
         )
-
-        # ====================================================
-        # 建物面積
-        # ====================================================
 
         area = to_float(
-            row.get("area")
+            row.get("farea")
         )
+
+        # 沒有交易單價就無法進行房價分析
+        if unit_price is None or unit_price <= 0:
+            continue
 
         district_records.append({
             "row": row,
@@ -224,11 +189,6 @@ def analyze_district(records, district):
 
     if not district_records:
 
-        print()
-        print("=" * 60)
-        print(f"{district} 房價分析")
-        print("=" * 60)
-
         print("沒有可分析的住宅買賣資料。")
 
         return
@@ -241,6 +201,7 @@ def analyze_district(records, district):
         item["unit_price"]
         for item in district_records
         if item["unit_price"] is not None
+        and item["unit_price"] > 0
     ]
 
     total_prices = [
@@ -258,49 +219,29 @@ def analyze_district(records, district):
     ]
 
     # ========================================================
-    # 顯示標題
+    # 統計結果
     # ========================================================
 
     print()
-    print("=" * 60)
-    print(f"{district} 房價分析")
-    print("=" * 60)
+    print(f"有效買賣筆數：{len(district_records):,} 筆")
 
-    print(
-        f"有效買賣筆數：{len(district_records):,} 筆"
-    )
+    if unit_prices:
 
-    # ========================================================
-    # 平均單價
-    # ========================================================
+        print(
+            f"平均單價：{mean(unit_prices):,.2f} 萬元/坪"
+        )
 
-    print(
-        f"平均單價：{mean(unit_prices):.2f} 萬元/坪"
-    )
+        print(
+            f"中位數單價：{median(unit_prices):,.2f} 萬元/坪"
+        )
 
-    # ========================================================
-    # 中位數單價
-    # ========================================================
+        print(
+            f"最高單價：{max(unit_prices):,.2f} 萬元/坪"
+        )
 
-    print(
-        f"中位數單價：{median(unit_prices):.2f} 萬元/坪"
-    )
-
-    # ========================================================
-    # 最高單價
-    # ========================================================
-
-    print(
-        f"最高單價：{max(unit_prices):.2f} 萬元/坪"
-    )
-
-    # ========================================================
-    # 最低單價
-    # ========================================================
-
-    print(
-        f"最低單價：{min(unit_prices):.2f} 萬元/坪"
-    )
+        print(
+            f"最低單價：{min(unit_prices):,.2f} 萬元/坪"
+        )
 
     # ========================================================
     # 平均總價
@@ -309,14 +250,12 @@ def analyze_district(records, district):
     if total_prices:
 
         print(
-            f"平均總價：{mean(total_prices):.2f} 萬元"
+            f"平均總價：{mean(total_prices):,.2f} 萬元"
         )
 
     else:
 
-        print(
-            "平均總價：沒有有效資料"
-        )
+        print("平均總價：沒有有效資料")
 
     # ========================================================
     # 平均建物面積
@@ -325,18 +264,19 @@ def analyze_district(records, district):
     if areas:
 
         print(
-            f"平均建物面積：{mean(areas):.2f} 坪"
+            f"平均建物面積：{mean(areas):,.2f} 坪"
         )
 
     else:
 
-        print(
-            "平均建物面積：沒有有效資料"
-        )
+        print("平均建物面積：沒有有效資料")
 
     # ========================================================
     # 住宅類型統計
     # ========================================================
+
+    print()
+    print("住宅類型統計：")
 
     building_types = {}
 
@@ -355,9 +295,6 @@ def analyze_district(records, district):
             building_types.get(building_type, 0) + 1
         )
 
-    print()
-    print("住宅類型統計：")
-
     sorted_types = sorted(
         building_types.items(),
         key=lambda x: x[1],
@@ -367,7 +304,7 @@ def analyze_district(records, district):
     for building_type, count in sorted_types:
 
         print(
-            f"  {building_type}：{count} 筆"
+            f"  {building_type}：{count:,} 筆"
         )
 
     # ========================================================
@@ -385,20 +322,32 @@ def analyze_district(records, district):
     print("最高單價案例：")
 
     print(
-        f"  單價：{highest['unit_price']:.2f} 萬元/坪"
+        f"  單價：{highest['unit_price']:,.2f} 萬元/坪"
     )
 
     print(
         f"  地址：{highest_row.get('location', '無資料')}"
     )
 
-    print(
-        f"  總價：{highest_row.get('price', '無資料')} 萬元"
-    )
+    if highest["total_price"] is not None:
 
-    print(
-        f"  面積：{highest_row.get('area', '無資料')} 坪"
-    )
+        print(
+            f"  總價：{highest['total_price']:,.2f} 萬元"
+        )
+
+    else:
+
+        print("  總價：無資料")
+
+    if highest["area"] is not None:
+
+        print(
+            f"  面積：{highest['area']:,.2f} 坪"
+        )
+
+    else:
+
+        print("  面積：無資料")
 
     # ========================================================
     # 最低單價案例
@@ -415,20 +364,32 @@ def analyze_district(records, district):
     print("最低單價案例：")
 
     print(
-        f"  單價：{lowest['unit_price']:.2f} 萬元/坪"
+        f"  單價：{lowest['unit_price']:,.2f} 萬元/坪"
     )
 
     print(
         f"  地址：{lowest_row.get('location', '無資料')}"
     )
 
-    print(
-        f"  總價：{lowest_row.get('price', '無資料')} 萬元"
-    )
+    if lowest["total_price"] is not None:
 
-    print(
-        f"  面積：{lowest_row.get('area', '無資料')} 坪"
-    )
+        print(
+            f"  總價：{lowest['total_price']:,.2f} 萬元"
+        )
+
+    else:
+
+        print("  總價：無資料")
+
+    if lowest["area"] is not None:
+
+        print(
+            f"  面積：{lowest['area']:,.2f} 坪"
+        )
+
+    else:
+
+        print("  面積：無資料")
 
 
 # ============================================================
@@ -442,9 +403,14 @@ def main():
     print("第四階段：住宅買賣房價分析")
     print("=" * 60)
 
+    # --------------------------------------------------------
+    # 讀取資料
+    # --------------------------------------------------------
+
     records = load_data()
 
     print()
+
     print(
         f"讀取到士林區／北投區資料：{len(records):,} 筆"
     )
@@ -452,11 +418,12 @@ def main():
     if not records:
 
         print("目前沒有可以分析的資料。")
+
         return
 
-    # ========================================================
+    # --------------------------------------------------------
     # 分析兩個行政區
-    # ========================================================
+    # --------------------------------------------------------
 
     for district in sorted(TARGET_DISTRICTS):
 
@@ -465,9 +432,9 @@ def main():
             district
         )
 
-    # ========================================================
+    # --------------------------------------------------------
     # 完成
-    # ========================================================
+    # --------------------------------------------------------
 
     print()
     print("=" * 60)
@@ -480,4 +447,5 @@ def main():
 # ============================================================
 
 if __name__ == "__main__":
+
     main()
