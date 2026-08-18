@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-18 15:45:35",
+  "generated_at": "2026-08-18 16:02:38",
   "districts": {
     "士林區": {
       "stats": {
@@ -19,8 +19,12 @@
       },
       "trend": {
         "direction": "下降",
-        "change": -39.831352555878176,
-        "confidence": "低"
+        "change": -19.07126605904551,
+        "confidence": "低",
+        "period": "最近3個月",
+        "latest_count": 4,
+        "window_count": 24,
+        "warning": "最近月份僅 4 筆交易，近期趨勢僅供參考，不宜直接解讀為整體房價走勢。"
       },
       "months": [
         {
@@ -110,35 +114,56 @@
       ],
       "routes": [
         {
-          "route": "中山北路",
-          "count": 11,
-          "average": 75.2990909090909,
-          "median": 66.59,
-          "heat": 828.29
-        },
-        {
-          "route": "天母西路50",
+          "route": "天母西路",
           "count": 6,
           "average": 98.72666666666666,
           "median": 98.625,
           "heat": 592.3599999999999
         },
         {
-          "route": "德行東路109",
+          "route": "中山北路七段",
+          "count": 6,
+          "average": 70.615,
+          "median": 66.135,
+          "heat": 423.68999999999994
+        },
+        {
+          "route": "中山北路六段",
+          "count": 5,
+          "average": 80.92,
+          "median": 70.57,
+          "heat": 404.6
+        },
+        {
+          "route": "文林路",
+          "count": 3,
+          "average": 86.49666666666667,
+          "median": 85.77,
+          "heat": 259.49
+        },
+        {
+          "route": "德行東路",
           "count": 2,
           "average": 118.47,
           "median": 118.47,
           "heat": 236.94
         },
         {
-          "route": "承德路",
+          "route": "承德路四段",
           "count": 3,
           "average": 72.43,
           "median": 87.33,
           "heat": 217.29000000000002
         },
         {
-          "route": "克強路10",
+          "route": "士東路",
+          "count": 3,
+          "average": 55.00333333333333,
+          "median": 66.67,
+          "heat": 165.01
+        },
+        {
+          "route": "克強路",
           "count": 2,
           "average": 60.379999999999995,
           "median": 60.379999999999995,
@@ -150,6 +175,13 @@
           "average": 36.916666666666664,
           "median": 36.91,
           "heat": 110.75
+        },
+        {
+          "route": "中正路",
+          "count": 2,
+          "average": 50.4,
+          "median": 50.4,
+          "heat": 100.8
         }
       ]
     },
@@ -170,9 +202,13 @@
         "iqr_upper": 153.64249999999998
       },
       "trend": {
-        "direction": "下降",
-        "change": -35.565012493842104,
-        "confidence": "中"
+        "direction": "上升",
+        "change": 22.745780342361282,
+        "confidence": "中",
+        "period": "最近3個月",
+        "latest_count": 7,
+        "window_count": 24,
+        "warning": "最近月份 7 筆交易，樣本量中等，建議搭配路段與住宅類型觀察。"
       },
       "months": [
         {
@@ -234,7 +270,21 @@
       ],
       "routes": [
         {
-          "route": "石牌路",
+          "route": "文林北路",
+          "count": 3,
+          "average": 120.7,
+          "median": 121.41,
+          "heat": 362.1
+        },
+        {
+          "route": "泉源路",
+          "count": 4,
+          "average": 70.185,
+          "median": 73.215,
+          "heat": 280.74
+        },
+        {
+          "route": "石牌路二段",
           "count": 3,
           "average": 87.7,
           "median": 92.63,
@@ -248,6 +298,13 @@
           "heat": 148.37
         },
         {
+          "route": "溫泉路",
+          "count": 2,
+          "average": 61.91,
+          "median": 61.91,
+          "heat": 123.82
+        },
+        {
           "route": "中和街",
           "count": 2,
           "average": 57.095,
@@ -255,7 +312,7 @@
           "heat": 114.19
         },
         {
-          "route": "中央北路",
+          "route": "中央北路二段",
           "count": 2,
           "average": 38.39,
           "median": 38.39,
