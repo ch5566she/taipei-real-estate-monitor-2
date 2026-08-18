@@ -3,36 +3,40 @@
 """
 台北市士林區／北投區房市監控系統
 
-第七階段：
-路段行情＋住宅類型＋市場熱點分析
+第八階段：
+歷史價格趨勢＋路段趨勢＋住宅類型＋市場熱點分析
 
 功能：
-1. CSV 資料品質檢查
-2. 住宅買賣交易篩選
-3. 平均／中位數／最高／最低單價
-4. 平均總價／平均建物面積
-5. IQR 主流行情與異常交易
-6. 住宅類型分析
-7. 單價區間分析
-8. 最高／最低單價案例
-9. 路段行情分析
-10. 路段交易量排行榜
-11. 路段平均單價排行榜
-12. 路段市場熱度分析
-13. 路段＋住宅類型交叉分析
-14. 士林區／北投區比較
+1. 資料品質檢查
+2. 士林區／北投區住宅買賣分析
+3. IQR 異常交易偵測
+4. 住宅類型分析
+5. 單價區間分析
+6. 路段平均單價分析
+7. 路段交易量分析
+8. 路段市場熱度分析
+9. 路段＋住宅類型交叉分析
+10. 士林／北投價格比較
+11. 月份歷史價格趨勢
+12. 月增率分析
+13. 路段歷史趨勢
+14. 市場方向判斷
+15. 自動處理多種日期格式
 
-重要資料欄位：
+重要欄位：
 uprice = 交易單價（萬元／坪）
-tprice = 交易總價（萬元）
+price  = 交易總價（萬元）
+tprice = 備用總價欄位
 farea  = 建物移轉總面積（坪）
-pu_area = 共有部分面積
+buitype = 建物型態
+location = 地址
+fdate / sdate = 日期欄位
 """
-
 
 import csv
 import os
 import re
+from collections import defaultdict
 from statistics import mean, median
 
 
@@ -47,18 +51,11 @@ TARGET_DISTRICTS = {
     "北投區",
 }
 
-REQUIRED_COLUMNS = [
-    "case_t",
-    "district",
-    "uprice",
-    "tprice",
-    "farea",
-    "buitype",
-    "location",
-]
+# 歷史趨勢至少需要多少筆交易
+MIN_TREND_TRANSACTIONS = 2
 
-TOP_ROUTE_COUNT = 15
-TOP_CROSS_COUNT = 20
+# 路段至少需要幾筆交易才列入趨勢
+MIN_ROUTE_TRANSACTIONS = 2
 
 
 # ============================================================
@@ -90,6 +87,7 @@ def to_float(value):
         return None
 
     value = value.replace(",", "")
+    value = value.replace("，", "")
 
     try:
         return float(value)
@@ -99,142 +97,218 @@ def to_float(value):
 
 
 # ============================================================
-# 四捨五入顯示
+# 日期解析
 # ============================================================
 
-def safe_mean(values):
-
-    if not values:
-        return None
-
-    return mean(values)
-
-
-def safe_median(values):
-
-    if not values:
-        return None
-
-    return median(values)
-
-
-# ============================================================
-# 百分位數
-# ============================================================
-
-def percentile(values, percent):
-
-    if not values:
-        return None
-
-    values = sorted(values)
-
-    if len(values) == 1:
-        return values[0]
-
-    position = (len(values) - 1) * percent
-
-    lower = int(position)
-    upper = lower + 1
-
-    if upper >= len(values):
-        return values[lower]
-
-    weight = position - lower
-
-    return (
-        values[lower]
-        + (values[upper] - values[lower]) * weight
-    )
-
-
-# ============================================================
-# 路段名稱整理
-# ============================================================
-
-def extract_route(location):
-
+def parse_date(value):
     """
-    從地址中擷取主要道路名稱。
-
-    例如：
-
-    德行東路109巷3號一樓
-        -> 德行東路
-
-    天母西路
-        -> 天母西路
-
-    中山北路七段266巷
-        -> 中山北路七段
-
-    中央北路二段320巷
-        -> 中央北路二段
-
-    如果無法辨識，回傳「其他」。
+    自動辨識：
+    2026-08-01
+    2026/08/01
+    2026.08.01
+    2026年8月1日
+    115/08/01
+    115-08-01
+    1150801
     """
 
-    if location is None:
-        return "其他"
+    if value is None:
+        return None
 
-    text = str(location).strip()
+    text = str(value).strip()
 
     if not text:
-        return "其他"
+        return None
 
-    # --------------------------------------------------------
-    # 去除行政區前綴
-    # --------------------------------------------------------
+    # 去除時間
+    text = text.split(" ")[0]
 
-    text = text.replace("台北市", "")
-    text = text.replace("臺北市", "")
-    text = text.replace("士林區", "")
-    text = text.replace("北投區", "")
-
-    # --------------------------------------------------------
-    # 優先找「路／街／大道」
-    # --------------------------------------------------------
-
-    pattern = (
-        r"(.+?"
-        r"(?:大道|路|街)"
-        r"(?:"
-        r"[一二三四五六七八九十百]+段"
-        r"|[0-9]+段"
-        r")?"
-        r")"
+    # 中文日期
+    text = (
+        text.replace("年", "-")
+        .replace("月", "-")
+        .replace("日", "")
     )
 
-    match = re.search(pattern, text)
-
-    if match:
-
-        route = match.group(1).strip()
-
-        if route:
-            return route
-
-    # --------------------------------------------------------
-    # 如果沒有路／街，嘗試巷
-    # --------------------------------------------------------
-
-    match = re.search(
-        r"(.+?巷)",
+    # ROC 日期
+    match = re.match(
+        r"^(\d{2,3})[-/.](\d{1,2})[-/.](\d{1,2})$",
         text
     )
 
     if match:
 
-        route = match.group(1).strip()
+        year = int(match.group(1))
+        month = int(match.group(2))
+        day = int(match.group(3))
 
-        if route:
-            return route
+        if year < 1911:
+            year += 1911
 
-    return "其他"
+        return (
+            year,
+            month,
+            day
+        )
+
+    # 西元日期
+    match = re.match(
+        r"^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$",
+        text
+    )
+
+    if match:
+
+        year = int(match.group(1))
+        month = int(match.group(2))
+        day = int(match.group(3))
+
+        return (
+            year,
+            month,
+            day
+        )
+
+    # 純數字日期
+    digits = re.sub(
+        r"\D",
+        "",
+        text
+    )
+
+    if len(digits) == 7:
+
+        # 民國年月日
+        year = int(digits[:3])
+        month = int(digits[3:5])
+        day = int(digits[5:7])
+
+        year += 1911
+
+        return (
+            year,
+            month,
+            day
+        )
+
+    if len(digits) == 8:
+
+        year = int(digits[:4])
+        month = int(digits[4:6])
+        day = int(digits[6:8])
+
+        return (
+            year,
+            month,
+            day
+        )
+
+    return None
+
+
+def date_to_month(date_value):
+
+    if not date_value:
+        return None
+
+    year, month, day = date_value
+
+    return f"{year:04d}-{month:02d}"
 
 
 # ============================================================
-# 住宅類型標準化
+# 日期欄位自動尋找
+# ============================================================
+
+def get_transaction_date(row):
+
+    # 優先順序
+    date_fields = [
+        "sdate",
+        "fdate",
+        "transaction_date",
+        "trade_date",
+        "date",
+        "_importdate",
+    ]
+
+    for field in date_fields:
+
+        value = row.get(field)
+
+        parsed = parse_date(value)
+
+        if parsed:
+            return parsed
+
+    return None
+
+
+# ============================================================
+# 地址 → 路段
+# ============================================================
+
+def extract_route(location):
+
+    if not location:
+        return "未知路段"
+
+    text = str(location).strip()
+
+    if not text:
+        return "未知路段"
+
+    # 移除地號
+    text = re.sub(
+        r"\d{3,5}-\d{4,5}地號",
+        "",
+        text
+    )
+
+    # 常見道路名稱
+    patterns = [
+        r"[\u4e00-\u9fff]{2,8}路\d*段?",
+        r"[\u4e00-\u9fff]{2,8}街",
+        r"[\u4e00-\u9fff]{2,8}大道",
+    ]
+
+    for pattern in patterns:
+
+        match = re.search(
+            pattern,
+            text
+        )
+
+        if match:
+
+            route = match.group(0)
+
+            route = re.sub(
+                r"\d+$",
+                "",
+                route
+            )
+
+            return route
+
+    # 如果抓不到，取前面一部分
+    parts = re.split(
+        r"\d+號|\d+巷|\d+弄",
+        text
+    )
+
+    if parts:
+
+        result = parts[0].strip()
+
+        if result:
+            return result
+
+    return "未知路段"
+
+
+# ============================================================
+# 住宅類型
 # ============================================================
 
 def normalize_building_type(row):
@@ -262,87 +336,102 @@ def load_data():
 
     if not os.path.exists(INPUT_FILE):
 
-        print()
-        print(f"錯誤：找不到資料檔案：{INPUT_FILE}")
+        print(
+            f"找不到資料檔案：{INPUT_FILE}"
+        )
+
         return []
 
     records = []
 
-    try:
+    with open(
+        INPUT_FILE,
+        "r",
+        encoding="utf-8-sig",
+        newline=""
+    ) as csvfile:
 
-        with open(
-            INPUT_FILE,
-            "r",
-            encoding="utf-8-sig",
-            newline=""
-        ) as csvfile:
+        reader = csv.DictReader(csvfile)
 
-            reader = csv.DictReader(csvfile)
+        fieldnames = reader.fieldnames or []
 
-            fieldnames = reader.fieldnames or []
+        print(
+            f"資料欄位數：{len(fieldnames)}"
+        )
 
-            print(
-                f"資料欄位數：{len(fieldnames)}"
-            )
+        print()
+        print("必要欄位檢查：")
 
-            print()
-            print("必要欄位檢查：")
+        required_fields = [
+            "case_t",
+            "district",
+            "uprice",
+            "price",
+            "farea",
+            "buitype",
+            "location",
+        ]
 
-            for column in REQUIRED_COLUMNS:
+        all_ok = True
 
-                if column in fieldnames:
+        for field in required_fields:
 
-                    print(
-                        f"  ✓ {column}"
-                    )
+            if field in fieldnames:
 
-                else:
+                print(
+                    f"  ✓ {field}"
+                )
 
-                    print(
-                        f"  ✗ {column}"
-                    )
+            else:
 
-            missing = [
-                column
-                for column in REQUIRED_COLUMNS
-                if column not in fieldnames
-            ]
+                print(
+                    f"  ✗ {field}"
+                )
 
-            if missing:
+                all_ok = False
+
+        # price 不存在時，嘗試 tprice
+        if "price" not in fieldnames:
+
+            if "tprice" in fieldnames:
 
                 print()
                 print(
-                    "錯誤：CSV 缺少必要欄位："
+                    "⚠️ 找不到 price，但找到 tprice。"
                 )
 
-                for column in missing:
-                    print(f"  {column}")
+                print(
+                    "系統將使用 tprice 作為總價。"
+                )
+
+            else:
+
+                print()
+                print(
+                    "錯誤：CSV 缺少必要總價欄位。"
+                )
 
                 return []
 
+        if "uprice" not in fieldnames:
+
             print()
-            print("資料欄位：")
-            print(", ".join(fieldnames))
+            print(
+                "錯誤：CSV 缺少 uprice。"
+            )
 
-            for row in reader:
+            return []
 
-                district = str(
-                    row.get("district", "")
-                ).strip()
+        for row in reader:
 
-                if district not in TARGET_DISTRICTS:
-                    continue
+            district = str(
+                row.get("district", "")
+            ).strip()
 
-                records.append(row)
+            if district not in TARGET_DISTRICTS:
+                continue
 
-    except Exception as error:
-
-        print()
-        print(
-            f"讀取 CSV 發生錯誤：{error}"
-        )
-
-        return []
+            records.append(row)
 
     print()
     print(
@@ -354,115 +443,75 @@ def load_data():
 
 
 # ============================================================
-# 準備單一行政區交易資料
+# 資料品質檢查
 # ============================================================
 
-def prepare_district_records(records, district):
+def check_data_quality(records, district):
 
-    raw_count = 0
-    valid_count = 0
-
-    no_area_count = 0
-    no_unit_price_count = 0
-    no_total_price_count = 0
-
-    items = []
-
-    for row in records:
-
-        row_district = str(
+    district_records = [
+        row
+        for row in records
+        if str(
             row.get("district", "")
-        ).strip()
+        ).strip() == district
+    ]
 
-        if row_district != district:
-            continue
-
-        case_type = str(
+    sale_records = [
+        row
+        for row in district_records
+        if str(
             row.get("case_t", "")
-        ).strip()
+        ).strip() == "買賣"
+    ]
 
-        if case_type != "買賣":
-            continue
+    valid_items = []
 
-        raw_count += 1
+    no_area = 0
+    no_unit_price = 0
+    no_total_price = 0
 
-        # ----------------------------------------------------
-        # 單價
-        # ----------------------------------------------------
+    for row in sale_records:
 
         unit_price = to_float(
             row.get("uprice")
         )
 
-        if unit_price is None or unit_price <= 0:
+        total_value = row.get("price")
 
-            no_unit_price_count += 1
-            continue
-
-        # ----------------------------------------------------
-        # 總價
-        # 使用 tprice
-        # ----------------------------------------------------
+        if total_value in (None, ""):
+            total_value = row.get("tprice")
 
         total_price = to_float(
-            row.get("tprice")
+            total_value
         )
-
-        if total_price is None or total_price <= 0:
-
-            no_total_price_count += 1
-            continue
-
-        # ----------------------------------------------------
-        # 建物面積
-        # ----------------------------------------------------
 
         area = to_float(
             row.get("farea")
         )
 
         if area is None or area <= 0:
-
-            no_area_count += 1
+            no_area += 1
             continue
 
-        # ----------------------------------------------------
-        # 路段
-        # ----------------------------------------------------
+        if unit_price is None or unit_price <= 0:
+            no_unit_price += 1
+            continue
 
-        location = str(
-            row.get("location", "")
-        ).strip()
+        if total_price is None or total_price <= 0:
+            no_total_price += 1
+            continue
 
-        route = extract_route(
-            location
-        )
-
-        building_type = normalize_building_type(
-            row
-        )
-
-        items.append({
-
+        valid_items.append({
             "row": row,
-
             "unit_price": unit_price,
-
             "total_price": total_price,
-
             "area": area,
-
-            "route": route,
-
-            "building_type": building_type,
-
         })
 
-        valid_count += 1
-
-    # --------------------------------------------------------
-    # 資料品質報告
-    # --------------------------------------------------------
+    excluded = (
+        len(sale_records)
+        - len(valid_items)
+    )
 
     print()
     print(
@@ -471,51 +520,90 @@ def prepare_district_records(records, district):
 
     print(
         f"原始符合行政區／買賣資料："
-        f"{raw_count:,} 筆"
+        f"{len(sale_records):,} 筆"
     )
 
     print(
         f"有效住宅交易："
-        f"{valid_count:,} 筆"
-    )
-
-    quality_excluded = (
-        no_area_count
-        + no_unit_price_count
-        + no_total_price_count
+        f"{len(valid_items):,} 筆"
     )
 
     print(
         f"品質排除："
-        f"{quality_excluded:,} 筆"
+        f"{excluded:,} 筆"
     )
 
-    if no_area_count:
-
+    if no_area:
         print(
             f"  └─ 無有效建物面積："
-            f"{no_area_count:,} 筆"
+            f"{no_area:,} 筆"
         )
 
-    if no_unit_price_count:
-
+    if no_unit_price:
         print(
             f"  └─ 無有效單價："
-            f"{no_unit_price_count:,} 筆"
+            f"{no_unit_price:,} 筆"
         )
 
-    if no_total_price_count:
-
+    if no_total_price:
         print(
             f"  └─ 無有效總價："
-            f"{no_total_price_count:,} 筆"
+            f"{no_total_price:,} 筆"
         )
 
-    return items
+    return valid_items
 
 
 # ============================================================
-# 計算 IQR
+# 準備行政區資料
+# ============================================================
+
+def prepare_district_records(records, district):
+
+    return check_data_quality(
+        records,
+        district
+    )
+
+
+# ============================================================
+# 四分位數
+# ============================================================
+
+def percentile(values, percent):
+
+    if not values:
+        return None
+
+    data = sorted(values)
+
+    if len(data) == 1:
+        return data[0]
+
+    index = (
+        (len(data) - 1)
+        * percent
+    )
+
+    lower = int(index)
+
+    upper = lower + 1
+
+    if upper >= len(data):
+        return data[lower]
+
+    weight = index - lower
+
+    return (
+        data[lower]
+        * (1 - weight)
+        + data[upper]
+        * weight
+    )
+
+
+# ============================================================
+# 統計計算
 # ============================================================
 
 def calculate_stats(items):
@@ -545,63 +633,40 @@ def calculate_stats(items):
         0.75
     )
 
+    iqr = None
+
+    lower = None
+    upper = None
+
     if q1 is not None and q3 is not None:
 
         iqr = q3 - q1
 
-        iqr_lower = q1 - 1.5 * iqr
+        lower = q1 - 1.5 * iqr
 
-        iqr_upper = q3 + 1.5 * iqr
+        upper = q3 + 1.5 * iqr
 
-    else:
+    normal_items = []
+    abnormal_items = []
 
-        iqr_lower = None
-        iqr_upper = None
+    for item in items:
 
-    # --------------------------------------------------------
-    # 主流交易
-    # --------------------------------------------------------
+        price = item["unit_price"]
 
-    if (
-        iqr_lower is not None
-        and iqr_upper is not None
-    ):
-
-        normal_items = [
-
-            item
-
-            for item in items
-
-            if (
-                item["unit_price"]
-                >= iqr_lower
-                and
-                item["unit_price"]
-                <= iqr_upper
+        if (
+            lower is not None
+            and upper is not None
+            and (
+                price < lower
+                or price > upper
             )
-        ]
+        ):
 
-        abnormal_items = [
+            abnormal_items.append(item)
 
-            item
+        else:
 
-            for item in items
-
-            if (
-                item["unit_price"]
-                < iqr_lower
-                or
-                item["unit_price"]
-                > iqr_upper
-            )
-        ]
-
-    else:
-
-        normal_items = list(items)
-
-        abnormal_items = []
+            normal_items.append(item)
 
     normal_prices = [
         item["unit_price"]
@@ -618,35 +683,41 @@ def calculate_stats(items):
         for item in normal_items
     ]
 
-    return {
-
+    stats = {
         "count": len(items),
 
-        "average_price": mean(unit_prices),
+        "average_price":
+            mean(unit_prices),
 
-        "median_price": median(unit_prices),
+        "median_price":
+            median(unit_prices),
 
-        "max_price": max(unit_prices),
+        "max_price":
+            max(unit_prices),
 
-        "min_price": min(unit_prices),
+        "min_price":
+            min(unit_prices),
 
-        "average_total": mean(total_prices),
+        "average_total":
+            mean(total_prices),
 
-        "average_area": mean(areas),
+        "average_area":
+            mean(areas),
 
         "q1": q1,
-
         "q3": q3,
 
-        "iqr_lower": iqr_lower,
+        "iqr_lower": lower,
+        "iqr_upper": upper,
 
-        "iqr_upper": iqr_upper,
+        "normal_count":
+            len(normal_items),
 
-        "normal_count": len(normal_items),
+        "abnormal_count":
+            len(abnormal_items),
 
-        "abnormal_count": len(abnormal_items),
-
-        "abnormal_items": abnormal_items,
+        "abnormal_items":
+            abnormal_items,
 
         "normal_average_price":
             mean(normal_prices)
@@ -667,8 +738,9 @@ def calculate_stats(items):
             mean(normal_areas)
             if normal_areas
             else None,
-
     }
+
+    return stats
 
 
 # ============================================================
@@ -677,17 +749,13 @@ def calculate_stats(items):
 
 def analyze_building_types(items):
 
-    groups = {}
+    groups = defaultdict(list)
 
     for item in items:
 
-        building_type = item[
-            "building_type"
-        ]
-
-        if building_type not in groups:
-
-            groups[building_type] = []
+        building_type = normalize_building_type(
+            item["row"]
+        )
 
         groups[building_type].append(
             item
@@ -710,8 +778,8 @@ def analyze_building_types(items):
         ]
 
         print(
-            f"  {building_type}"
-            f"｜{len(group):,} 筆"
+            f"  {building_type}："
+            f"{len(group):,} 筆"
             f"｜平均 "
             f"{mean(prices):,.2f} 萬/坪"
             f"｜中位數 "
@@ -726,17 +794,11 @@ def analyze_building_types(items):
 def analyze_price_ranges(items):
 
     ranges = {
-
-        "50萬以下": [],
-
-        "50～70萬": [],
-
-        "70～90萬": [],
-
-        "90～120萬": [],
-
-        "120萬以上": [],
-
+        "50萬以下": 0,
+        "50～70萬": 0,
+        "70～90萬": 0,
+        "90～120萬": 0,
+        "120萬以上": 0,
     }
 
     for item in items:
@@ -745,42 +807,31 @@ def analyze_price_ranges(items):
 
         if price < 50:
 
-            ranges["50萬以下"].append(
-                item
-            )
+            ranges["50萬以下"] += 1
 
         elif price < 70:
 
-            ranges["50～70萬"].append(
-                item
-            )
+            ranges["50～70萬"] += 1
 
         elif price < 90:
 
-            ranges["70～90萬"].append(
-                item
-            )
+            ranges["70～90萬"] += 1
 
         elif price < 120:
 
-            ranges["90～120萬"].append(
-                item
-            )
+            ranges["90～120萬"] += 1
 
         else:
 
-            ranges["120萬以上"].append(
-                item
-            )
+            ranges["120萬以上"] += 1
 
     print()
     print("單價區間分布：")
 
-    for label, group in ranges.items():
+    for label, count in ranges.items():
 
         print(
-            f"  {label}："
-            f"{len(group):,} 筆"
+            f"  {label}：{count:,} 筆"
         )
 
 
@@ -790,9 +841,7 @@ def analyze_price_ranges(items):
 
 def show_abnormal_cases(stats):
 
-    abnormal = stats[
-        "abnormal_items"
-    ]
+    abnormal = stats["abnormal_items"]
 
     print()
     print(
@@ -814,10 +863,12 @@ def show_abnormal_cases(stats):
         reverse=True
     )[:5]
 
+    high_count = len(highest)
+
     print()
     print(
         f"🔴 高價異常候選："
-        f"{len(highest):,} 筆"
+        f"{high_count:,} 筆"
     )
 
     for item in highest:
@@ -825,8 +876,7 @@ def show_abnormal_cases(stats):
         row = item["row"]
 
         print(
-            f"  {item['unit_price']:,.2f}"
-            f" 萬/坪"
+            f"  {item['unit_price']:,.2f} 萬/坪"
             f"｜{row.get('location', '無資料')}"
             f"｜總價 "
             f"{item['total_price']:,.2f} 萬"
@@ -839,38 +889,41 @@ def show_abnormal_cases(stats):
         key=lambda x: x["unit_price"]
     )[:5]
 
+    lower_bound = stats.get(
+        "iqr_lower"
+    )
+
+    low_items = []
+
+    if lower_bound is not None:
+
+        low_items = [
+            item
+            for item in abnormal
+            if item["unit_price"]
+            < lower_bound
+        ]
+
     print()
     print(
         f"🔵 低價異常候選："
-        f"{len(lowest):,} 筆"
+        f"{len(low_items):,} 筆"
     )
-
-    low_items = [
-        item
-        for item in lowest
-        if (
-            stats["iqr_lower"] is not None
-            and
-            item["unit_price"]
-            < stats["iqr_lower"]
-        )
-    ]
 
     if not low_items:
 
         print(
-            "  沒有低於 IQR 合理下限的交易。"
+            "  沒有低於 IQR 合理下限的低價異常交易。"
         )
 
     else:
 
-        for item in low_items:
+        for item in low_items[:5]:
 
             row = item["row"]
 
             print(
-                f"  {item['unit_price']:,.2f}"
-                f" 萬/坪"
+                f"  {item['unit_price']:,.2f} 萬/坪"
                 f"｜{row.get('location', '無資料')}"
                 f"｜總價 "
                 f"{item['total_price']:,.2f} 萬"
@@ -878,104 +931,111 @@ def show_abnormal_cases(stats):
 
 
 # ============================================================
-# 路段行情分析
+# 路段分析
 # ============================================================
 
 def analyze_routes(items):
 
-    groups = {}
+    groups = defaultdict(list)
 
     for item in items:
 
-        route = item["route"]
-
-        if route not in groups:
-
-            groups[route] = []
+        route = extract_route(
+            item["row"].get(
+                "location",
+                ""
+            )
+        )
 
         groups[route].append(
             item
         )
 
-    # 排除只有 1 筆的路段
     valid_groups = {
         route: group
         for route, group in groups.items()
-        if len(group) >= 2
+        if len(group) >= MIN_ROUTE_TRANSACTIONS
     }
 
     print()
     print("【六、路段行情分析】")
-
-    if not valid_groups:
-
-        print(
-            "目前沒有至少 2 筆交易的路段。"
-        )
-
-        return
 
     print(
         f"可分析路段："
         f"{len(valid_groups):,} 條"
     )
 
+    if not valid_groups:
+
+        print(
+            "目前沒有足夠交易量的路段。"
+        )
+
+        return valid_groups
+
     # --------------------------------------------------------
-    # 平均價格排名
+    # 平均單價
     # --------------------------------------------------------
 
-    price_ranking = sorted(
-        valid_groups.items(),
-        key=lambda x:
-        mean(
-            item["unit_price"]
-            for item in x[1]
-        ),
-        reverse=True
-    )
+    route_price = []
 
-    print()
-    print(
-        "🏆 路段平均單價排行榜："
-    )
-
-    for index, (route, group) in enumerate(
-        price_ranking[:TOP_ROUTE_COUNT],
-        start=1
-    ):
+    for route, group in valid_groups.items():
 
         prices = [
             item["unit_price"]
             for item in group
         ]
 
+        route_price.append(
+            (
+                route,
+                len(group),
+                mean(prices),
+                median(prices)
+            )
+        )
+
+    route_price.sort(
+        key=lambda x: x[2],
+        reverse=True
+    )
+
+    print()
+    print("🏆 路段平均單價排行榜：")
+
+    for index, data in enumerate(
+        route_price[:10],
+        start=1
+    ):
+
+        route, count, avg, med = data
+
         print(
-            f"  {index:>2}. "
-            f"{route}"
-            f"｜{len(group):,} 筆"
-            f"｜平均 "
-            f"{mean(prices):,.2f} 萬/坪"
-            f"｜中位數 "
-            f"{median(prices):,.2f} 萬/坪"
+            f"  {index}. "
+            f"{route}｜"
+            f"{count} 筆｜"
+            f"平均 {avg:,.2f} 萬/坪｜"
+            f"中位數 {med:,.2f} 萬/坪"
         )
 
     # --------------------------------------------------------
-    # 交易量排名
+    # 交易量
     # --------------------------------------------------------
 
-    volume_ranking = sorted(
+    route_count = sorted(
         valid_groups.items(),
         key=lambda x: len(x[1]),
         reverse=True
     )
 
     print()
-    print(
-        "📊 路段交易量排行榜："
-    )
+    print("📊 路段交易量排行榜：")
 
-    for index, (route, group) in enumerate(
-        volume_ranking[:TOP_ROUTE_COUNT],
+    for index, (
+        route,
+        group
+    ) in enumerate(
+        route_count[:10],
         start=1
     ):
 
@@ -985,134 +1045,136 @@ def analyze_routes(items):
         ]
 
         print(
-            f"  {index:>2}. "
-            f"{route}"
-            f"｜{len(group):,} 筆"
-            f"｜平均 "
-            f"{mean(prices):,.2f} 萬/坪"
+            f"  {index}. "
+            f"{route}｜"
+            f"交易 {len(group)} 筆｜"
+            f"平均 {mean(prices):,.2f} 萬/坪"
         )
 
     # --------------------------------------------------------
-    # 市場熱度
-    #
-    # 簡單以：
-    # 交易量 × 平均單價
-    #
-    # 作為市場熱度指標。
-    #
-    # 注意：
-    # 這不是金融市場的標準指標，
-    # 是本系統提供的比較指標。
+    # 熱度
     # --------------------------------------------------------
 
-    heat_ranking = sorted(
-        valid_groups.items(),
-        key=lambda x:
-        len(x[1])
-        *
-        mean(
+    print()
+    print("🔥 路段市場熱度排行榜：")
+
+    heat_data = []
+
+    for route, group in valid_groups.items():
+
+        prices = [
             item["unit_price"]
-            for item in x[1]
-        ),
+            for item in group
+        ]
+
+        avg = mean(prices)
+
+        heat = (
+            len(group)
+            * avg
+        )
+
+        heat_data.append(
+            (
+                route,
+                len(group),
+                avg,
+                heat
+            )
+        )
+
+    heat_data.sort(
+        key=lambda x: x[3],
         reverse=True
     )
 
-    print()
-    print(
-        "🔥 路段市場熱度排行榜："
-    )
-
-    for index, (route, group) in enumerate(
-        heat_ranking[:TOP_ROUTE_COUNT],
+    for index, data in enumerate(
+        heat_data[:10],
         start=1
     ):
 
-        avg_price = mean(
-            item["unit_price"]
-            for item in group
-        )
-
-        heat_score = (
-            len(group)
-            * avg_price
-        )
+        route, count, avg, heat = data
 
         print(
-            f"  {index:>2}. "
-            f"{route}"
-            f"｜交易 {len(group):,} 筆"
-            f"｜均價 {avg_price:,.2f} 萬/坪"
-            f"｜熱度 {heat_score:,.2f}"
+            f"  {index}. "
+            f"{route}｜"
+            f"交易 {count} 筆｜"
+            f"均價 {avg:,.2f} 萬/坪｜"
+            f"熱度 {heat:,.2f}"
         )
+
+    return valid_groups
 
 
 # ============================================================
 # 路段＋住宅類型
 # ============================================================
 
-def analyze_route_building_type(items):
+def analyze_route_building_types(items):
 
-    groups = {}
+    groups = defaultdict(list)
 
     for item in items:
 
-        route = item["route"]
+        route = extract_route(
+            item["row"].get(
+                "location",
+                ""
+            )
+        )
 
-        building_type = item[
-            "building_type"
-        ]
+        building_type = normalize_building_type(
+            item["row"]
+        )
 
         key = (
             route,
             building_type
         )
 
-        if key not in groups:
-
-            groups[key] = []
-
         groups[key].append(
             item
         )
 
-    valid_groups = {
-
-        key: group
-
-        for key, group in groups.items()
-
+    valid = [
+        (
+            route,
+            building_type,
+            group
+        )
+        for (
+            route,
+            building_type
+        ), group in groups.items()
         if len(group) >= 2
-    }
+    ]
+
+    valid.sort(
+        key=lambda x: mean(
+            [
+                item["unit_price"]
+                for item in x[2]
+            ]
+        ),
+        reverse=True
+    )
 
     print()
     print(
         "【七、路段＋住宅類型交叉分析】"
     )
 
-    if not valid_groups:
-
-        print(
-            "目前沒有至少 2 筆交易的交叉組別。"
-        )
-
-        return
-
-    ranking = sorted(
-        valid_groups.items(),
-        key=lambda x: len(x[1]),
-        reverse=True
-    )
-
     print(
         f"僅顯示至少 2 筆交易的組別："
-        f"{len(ranking):,} 組"
+        f"{len(valid):,} 組"
     )
 
     for index, (
-        (route, building_type),
+        route,
+        building_type,
         group
     ) in enumerate(
-        ranking[:TOP_CROSS_COUNT],
+        valid[:10],
         start=1
     ):
 
@@ -1122,100 +1184,619 @@ def analyze_route_building_type(items):
         ]
 
         print(
-            f"  {index:>2}. "
-            f"{route}"
-            f"｜{building_type}"
-            f"｜{len(group):,} 筆"
-            f"｜平均 "
-            f"{mean(prices):,.2f} 萬/坪"
-            f"｜中位數 "
-            f"{median(prices):,.2f} 萬/坪"
+            f"  {index}. "
+            f"{route}｜"
+            f"{building_type}｜"
+            f"{len(group)} 筆｜"
+            f"平均 {mean(prices):,.2f} 萬/坪｜"
+            f"中位數 {median(prices):,.2f} 萬/坪"
         )
 
 
 # ============================================================
-# 最高／最低單價
+# 市場熱點摘要
 # ============================================================
 
-def show_extreme_cases(items):
+def print_market_summary(items):
 
-    # --------------------------------------------------------
-    # 最高
-    # --------------------------------------------------------
+    groups = defaultdict(list)
 
-    highest = max(
-        items,
-        key=lambda x:
-        x["unit_price"]
+    for item in items:
+
+        route = extract_route(
+            item["row"].get(
+                "location",
+                ""
+            )
+        )
+
+        groups[route].append(
+            item
+        )
+
+    valid = [
+        (
+            route,
+            group
+        )
+        for route, group in groups.items()
+        if len(group) >= 2
+    ]
+
+    if not valid:
+
+        return
+
+    heat_data = []
+
+    for route, group in valid:
+
+        avg = mean(
+            [
+                item["unit_price"]
+                for item in group
+            ]
+        )
+
+        heat = (
+            len(group)
+            * avg
+        )
+
+        heat_data.append(
+            (
+                route,
+                len(group),
+                avg,
+                heat
+            )
+        )
+
+    heat_data.sort(
+        key=lambda x: x[3],
+        reverse=True
     )
 
-    highest_row = highest["row"]
+    print()
+    print("【八、市場熱點摘要】")
+
+    hottest = heat_data[0]
+
+    highest_price = max(
+        heat_data,
+        key=lambda x: x[2]
+    )
+
+    highest_count = max(
+        heat_data,
+        key=lambda x: x[1]
+    )
+
+    print()
+    print("🔥 市場熱度最高路段：")
+
+    print(
+        f"  {hottest[0]}｜"
+        f"交易 {hottest[1]} 筆｜"
+        f"平均 {hottest[2]:,.2f} 萬/坪"
+    )
+
+    print()
+    print("💰 平均單價最高路段：")
+
+    print(
+        f"  {highest_price[0]}｜"
+        f"交易 {highest_price[1]} 筆｜"
+        f"平均 {highest_price[2]:,.2f} 萬/坪"
+    )
+
+    print()
+    print("📊 交易量最高路段：")
+
+    print(
+        f"  {highest_count[0]}｜"
+        f"交易 {highest_count[1]} 筆｜"
+        f"平均 {highest_count[2]:,.2f} 萬/坪"
+    )
+
+
+# ============================================================
+# 歷史月份分析
+# ============================================================
+
+def build_month_groups(items):
+
+    groups = defaultdict(list)
+
+    for item in items:
+
+        row = item["row"]
+
+        date_value = get_transaction_date(
+            row
+        )
+
+        month = date_to_month(
+            date_value
+        )
+
+        if month:
+
+            groups[month].append(
+                item
+            )
+
+    return groups
+
+
+def trend_direction(change_percent):
+
+    if change_percent is None:
+        return "資料不足"
+
+    if change_percent >= 3:
+        return "上升"
+
+    if change_percent <= -3:
+        return "下降"
+
+    return "盤整"
+
+
+def analyze_monthly_trend(items, district):
+
+    print()
+    print("【九、歷史價格趨勢分析】")
+
+    month_groups = build_month_groups(
+        items
+    )
+
+    if not month_groups:
+
+        print(
+            "⚠️ 找不到可解析的交易日期。"
+        )
+
+        print(
+            "系統已嘗試 fdate、sdate、"
+            "transaction_date、trade_date、date、_importdate。"
+        )
+
+        return None
+
+    months = sorted(
+        month_groups.keys()
+    )
 
     print()
     print(
-        "【最高單價案例】"
+        f"可分析月份："
+        f"{len(months):,} 個"
     )
 
-    print(
-        f"單價："
-        f"{highest['unit_price']:,.2f} 萬/坪"
-    )
+    monthly_data = []
 
-    print(
-        f"地址："
-        f"{highest_row.get('location', '無資料')}"
-    )
+    for month in months:
 
-    print(
-        f"總價："
-        f"{highest['total_price']:,.2f} 萬"
-    )
+        group = month_groups[month]
 
-    print(
-        f"面積："
-        f"{highest['area']:,.2f} 坪"
-    )
+        prices = [
+            item["unit_price"]
+            for item in group
+        ]
 
-    # --------------------------------------------------------
-    # 最低
-    # --------------------------------------------------------
-
-    lowest = min(
-        items,
-        key=lambda x:
-        x["unit_price"]
-    )
-
-    lowest_row = lowest["row"]
+        monthly_data.append({
+            "month": month,
+            "count": len(group),
+            "average": mean(prices),
+            "median": median(prices),
+        })
 
     print()
     print(
-        "【最低單價案例】"
+        f"{'月份':<12}"
+        f"{'交易量':>8}"
+        f"{'平均單價':>14}"
+        f"{'中位數':>14}"
+        f"{'月增率':>12}"
+        f"{'方向':>8}"
     )
 
-    print(
-        f"單價："
-        f"{lowest['unit_price']:,.2f} 萬/坪"
-    )
+    print("-" * 72)
 
-    print(
-        f"地址："
-        f"{lowest_row.get('location', '無資料')}"
-    )
+    previous = None
 
-    print(
-        f"總價："
-        f"{lowest['total_price']:,.2f} 萬"
-    )
+    for data in monthly_data:
 
-    print(
-        f"面積："
-        f"{lowest['area']:,.2f} 坪"
-    )
+        change = None
+
+        if (
+            previous
+            and previous["average"] != 0
+        ):
+
+            change = (
+                (
+                    data["average"]
+                    - previous["average"]
+                )
+                / previous["average"]
+                * 100
+            )
+
+        direction = trend_direction(
+            change
+        )
+
+        change_text = (
+            f"{change:+.2f}%"
+            if change is not None
+            else "—"
+        )
+
+        print(
+            f"{data['month']:<12}"
+            f"{data['count']:>8,}"
+            f"{data['average']:>14,.2f}"
+            f"{data['median']:>14,.2f}"
+            f"{change_text:>12}"
+            f"{direction:>8}"
+        )
+
+        previous = data
+
+    # --------------------------------------------------------
+    # 整體趨勢
+    # --------------------------------------------------------
+
+    print()
+    print("📈 市場方向判斷：")
+
+    if len(monthly_data) >= 2:
+
+        first = monthly_data[0]
+        last = monthly_data[-1]
+
+        total_change = (
+            (
+                last["average"]
+                - first["average"]
+            )
+            / first["average"]
+            * 100
+        )
+
+        direction = trend_direction(
+            total_change
+        )
+
+        print(
+            f"  {district}："
+            f"{direction}"
+        )
+
+        print(
+            f"  最早月份："
+            f"{first['month']} "
+            f"{first['average']:,.2f} 萬/坪"
+        )
+
+        print(
+            f"  最新月份："
+            f"{last['month']} "
+            f"{last['average']:,.2f} 萬/坪"
+        )
+
+        print(
+            f"  期間變化："
+            f"{total_change:+.2f}%"
+        )
+
+    else:
+
+        print(
+            "  資料不足，至少需要 2 個月份。"
+        )
+
+    return monthly_data
 
 
 # ============================================================
-# 單一行政區完整報告
+# 路段歷史趨勢
+# ============================================================
+
+def analyze_route_history(items):
+
+    print()
+    print("【十、路段歷史價格趨勢】")
+
+    route_month_groups = defaultdict(
+        lambda: defaultdict(list)
+    )
+
+    for item in items:
+
+        row = item["row"]
+
+        date_value = get_transaction_date(
+            row
+        )
+
+        month = date_to_month(
+            date_value
+        )
+
+        if not month:
+            continue
+
+        route = extract_route(
+            row.get(
+                "location",
+                ""
+            )
+        )
+
+        route_month_groups[
+            route
+        ][month].append(
+            item["unit_price"]
+        )
+
+    route_results = []
+
+    for route, month_groups in route_month_groups.items():
+
+        months = sorted(
+            month_groups.keys()
+        )
+
+        if len(months) < 2:
+            continue
+
+        first_month = months[0]
+        last_month = months[-1]
+
+        first_prices = month_groups[
+            first_month
+        ]
+
+        last_prices = month_groups[
+            last_month
+        ]
+
+        first_avg = mean(
+            first_prices
+        )
+
+        last_avg = mean(
+            last_prices
+        )
+
+        if first_avg == 0:
+            continue
+
+        change = (
+            (
+                last_avg
+                - first_avg
+            )
+            / first_avg
+            * 100
+        )
+
+        total_count = sum(
+            len(values)
+            for values in month_groups.values()
+        )
+
+        if total_count < MIN_ROUTE_TRANSACTIONS:
+            continue
+
+        route_results.append({
+            "route": route,
+            "count": total_count,
+            "first_month": first_month,
+            "last_month": last_month,
+            "first_avg": first_avg,
+            "last_avg": last_avg,
+            "change": change,
+            "direction":
+                trend_direction(change),
+        })
+
+    if not route_results:
+
+        print(
+            "目前沒有足夠歷史資料的路段。"
+        )
+
+        return
+
+    # 最強上升
+    rising = sorted(
+        route_results,
+        key=lambda x: x["change"],
+        reverse=True
+    )
+
+    print()
+    print("📈 路段上升排行榜：")
+
+    for index, item in enumerate(
+        rising[:10],
+        start=1
+    ):
+
+        if item["change"] <= 0:
+            break
+
+        print(
+            f"  {index}. "
+            f"{item['route']}｜"
+            f"{item['first_month']} → "
+            f"{item['last_month']}｜"
+            f"{item['first_avg']:,.2f} → "
+            f"{item['last_avg']:,.2f} 萬/坪｜"
+            f"{item['change']:+.2f}%"
+        )
+
+    # 最大下降
+    falling = sorted(
+        route_results,
+        key=lambda x: x["change"]
+    )
+
+    print()
+    print("📉 路段下降排行榜：")
+
+    found_falling = False
+
+    for index, item in enumerate(
+        falling[:10],
+        start=1
+    ):
+
+        if item["change"] >= 0:
+            continue
+
+        found_falling = True
+
+        print(
+            f"  {index}. "
+            f"{item['route']}｜"
+            f"{item['first_month']} → "
+            f"{item['last_month']}｜"
+            f"{item['first_avg']:,.2f} → "
+            f"{item['last_avg']:,.2f} 萬/坪｜"
+            f"{item['change']:+.2f}%"
+        )
+
+    if not found_falling:
+
+        print(
+            "  目前沒有明顯下降路段。"
+        )
+
+
+# ============================================================
+# 士林／北投歷史比較
+# ============================================================
+
+def compare_historical_trends(
+    district_items
+):
+
+    print()
+    print("【十一、士林區 vs 北投區歷史趨勢】")
+
+    district_month_data = {}
+
+    for district, items in district_items.items():
+
+        month_groups = build_month_groups(
+            items
+        )
+
+        data = {}
+
+        for month, group in month_groups.items():
+
+            prices = [
+                item["unit_price"]
+                for item in group
+            ]
+
+            data[month] = {
+                "count": len(group),
+                "average": mean(prices),
+                "median": median(prices),
+            }
+
+        district_month_data[
+            district
+        ] = data
+
+    all_months = set()
+
+    for data in district_month_data.values():
+
+        all_months.update(
+            data.keys()
+        )
+
+    months = sorted(
+        all_months
+    )
+
+    if not months:
+
+        print(
+            "沒有可比較的歷史月份。"
+        )
+
+        return
+
+    print()
+
+    print(
+        f"{'月份':<12}"
+        f"{'士林區':>16}"
+        f"{'北投區':>16}"
+        f"{'價差':>16}"
+    )
+
+    print("-" * 62)
+
+    for month in months:
+
+        shilin = district_month_data.get(
+            "士林區",
+            {}
+        ).get(month)
+
+        beitou = district_month_data.get(
+            "北投區",
+            {}
+        ).get(month)
+
+        shilin_text = (
+            f"{shilin['average']:,.2f}"
+            if shilin
+            else "—"
+        )
+
+        beitou_text = (
+            f"{beitou['average']:,.2f}"
+            if beitou
+            else "—"
+        )
+
+        if shilin and beitou:
+
+            difference = (
+                shilin["average"]
+                - beitou["average"]
+            )
+
+            difference_text = (
+                f"{difference:+,.2f}"
+            )
+
+        else:
+
+            difference_text = "—"
+
+        print(
+            f"{month:<12}"
+            f"{shilin_text:>16}"
+            f"{beitou_text:>16}"
+            f"{difference_text:>16}"
+        )
+
+
+# ============================================================
+# 行政區完整報告
 # ============================================================
 
 def print_district_report(
@@ -1226,7 +1807,7 @@ def print_district_report(
     print()
     print("=" * 70)
     print(
-        f"{district} 第七階段專業房價分析"
+        f"{district} 第八階段專業房價分析"
     )
     print("=" * 70)
 
@@ -1243,13 +1824,11 @@ def print_district_report(
     )
 
     # --------------------------------------------------------
-    # 一、原始行情
+    # 原始行情
     # --------------------------------------------------------
 
     print()
-    print(
-        "【一、原始交易行情】"
-    )
+    print("【一、原始交易行情】")
 
     print(
         f"有效住宅買賣："
@@ -1287,13 +1866,11 @@ def print_district_report(
     )
 
     # --------------------------------------------------------
-    # 二、IQR
+    # IQR
     # --------------------------------------------------------
 
     print()
-    print(
-        "【二、主流行情／異常值分析】"
-    )
+    print("【二、主流行情／異常值分析】")
 
     print(
         f"Q1："
@@ -1305,15 +1882,17 @@ def print_district_report(
         f"{stats['q3']:,.2f} 萬/坪"
     )
 
-    print(
-        f"IQR 合理下限："
-        f"{stats['iqr_lower']:,.2f} 萬/坪"
-    )
+    if stats["iqr_lower"] is not None:
 
-    print(
-        f"IQR 合理上限："
-        f"{stats['iqr_upper']:,.2f} 萬/坪"
-    )
+        print(
+            f"IQR 合理下限："
+            f"{stats['iqr_lower']:,.2f} 萬/坪"
+        )
+
+        print(
+            f"IQR 合理上限："
+            f"{stats['iqr_upper']:,.2f} 萬/坪"
+        )
 
     print(
         f"主流交易："
@@ -1329,77 +1908,127 @@ def print_district_report(
 
         print(
             f"主流平均單價："
-            f"{stats['normal_average_price']:,.2f}"
-            f" 萬/坪"
+            f"{stats['normal_average_price']:,.2f} 萬/坪"
         )
 
         print(
             f"主流中位數單價："
-            f"{stats['normal_median_price']:,.2f}"
-            f" 萬/坪"
+            f"{stats['normal_median_price']:,.2f} 萬/坪"
         )
 
         print(
             f"主流平均總價："
-            f"{stats['normal_average_total']:,.2f}"
-            f" 萬"
+            f"{stats['normal_average_total']:,.2f} 萬"
         )
 
         print(
             f"主流平均面積："
-            f"{stats['normal_average_area']:,.2f}"
-            f" 坪"
+            f"{stats['normal_average_area']:,.2f} 坪"
         )
 
     # --------------------------------------------------------
-    # 三、住宅類型
+    # 住宅類型
     # --------------------------------------------------------
 
     print()
-    print(
-        "【三、住宅類型】"
-    )
+    print("【三、住宅類型】")
 
     analyze_building_types(
         items
     )
 
     # --------------------------------------------------------
-    # 四、單價區間
+    # 價格區間
     # --------------------------------------------------------
 
     print()
-    print(
-        "【四、單價區間】"
-    )
+    print("【四、單價區間】")
 
     analyze_price_ranges(
         items
     )
 
     # --------------------------------------------------------
-    # 五、異常交易
+    # 異常交易
     # --------------------------------------------------------
 
     print()
-    print(
-        "【五、異常交易候選】"
-    )
+    print("【五、異常交易候選】")
 
     show_abnormal_cases(
         stats
     )
 
     # --------------------------------------------------------
-    # 極端案例
+    # 最高單價
     # --------------------------------------------------------
 
-    show_extreme_cases(
-        items
+    highest = max(
+        items,
+        key=lambda x: x["unit_price"]
+    )
+
+    highest_row = highest["row"]
+
+    print()
+    print("【最高單價案例】")
+
+    print(
+        f"單價："
+        f"{highest['unit_price']:,.2f} 萬/坪"
+    )
+
+    print(
+        f"地址："
+        f"{highest_row.get('location', '無資料')}"
+    )
+
+    print(
+        f"總價："
+        f"{highest['total_price']:,.2f} 萬"
+    )
+
+    print(
+        f"面積："
+        f"{highest['area']:,.2f} 坪"
     )
 
     # --------------------------------------------------------
-    # 六、路段
+    # 最低單價
+    # --------------------------------------------------------
+
+    lowest = min(
+        items,
+        key=lambda x: x["unit_price"]
+    )
+
+    lowest_row = lowest["row"]
+
+    print()
+    print("【最低單價案例】")
+
+    print(
+        f"單價："
+        f"{lowest['unit_price']:,.2f} 萬/坪"
+    )
+
+    print(
+        f"地址："
+        f"{lowest_row.get('location', '無資料')}"
+    )
+
+    print(
+        f"總價："
+        f"{lowest['total_price']:,.2f} 萬"
+    )
+
+    print(
+        f"面積："
+        f"{lowest['area']:,.2f} 坪"
+    )
+
+    # --------------------------------------------------------
+    # 路段
     # --------------------------------------------------------
 
     analyze_routes(
@@ -1407,10 +2036,35 @@ def print_district_report(
     )
 
     # --------------------------------------------------------
-    # 七、路段＋住宅類型
+    # 路段＋住宅類型
     # --------------------------------------------------------
 
-    analyze_route_building_type(
+    analyze_route_building_types(
+        items
+    )
+
+    # --------------------------------------------------------
+    # 市場熱點
+    # --------------------------------------------------------
+
+    print_market_summary(
+        items
+    )
+
+    # --------------------------------------------------------
+    # 歷史趨勢
+    # --------------------------------------------------------
+
+    analyze_monthly_trend(
+        items,
+        district
+    )
+
+    # --------------------------------------------------------
+    # 路段歷史
+    # --------------------------------------------------------
+
+    analyze_route_history(
         items
     )
 
@@ -1424,7 +2078,9 @@ def print_district_report(
 # 士林／北投比較
 # ============================================================
 
-def compare_districts(stats_map):
+def compare_districts(
+    stats_map
+):
 
     shilin = stats_map.get(
         "士林區"
@@ -1458,9 +2114,7 @@ def compare_districts(stats_map):
         f"{'北投區':>15}"
     )
 
-    print(
-        "-" * 50
-    )
+    print("-" * 50)
 
     print(
         f"{'有效交易':<18}"
@@ -1498,46 +2152,28 @@ def compare_districts(stats_map):
         f"{beitou['average_area']:>15,.2f}"
     )
 
-    # --------------------------------------------------------
-    # 價差
-    # --------------------------------------------------------
-
-    shilin_price = (
+    price_difference = (
         shilin["normal_average_price"]
-    )
-
-    beitou_price = (
-        beitou["normal_average_price"]
+        - beitou["normal_average_price"]
     )
 
     if (
-        shilin_price is None
-        or beitou_price is None
-        or beitou_price == 0
+        beitou["normal_average_price"]
+        != 0
     ):
 
-        percentage = 0
-
-    else:
-
         percentage = (
-            (
-                shilin_price
-                - beitou_price
-            )
-            / beitou_price
+            price_difference
+            / beitou["normal_average_price"]
             * 100
         )
 
-    price_difference = (
-        shilin_price
-        - beitou_price
-    )
+    else:
+
+        percentage = 0
 
     print()
-    print(
-        "【市場價格差異】"
-    )
+    print("【市場價格差異】")
 
     if price_difference > 0:
 
@@ -1548,8 +2184,7 @@ def compare_districts(stats_map):
         )
 
         print(
-            f"約高 "
-            f"{percentage:,.2f}%"
+            f"約高 {percentage:,.2f}%"
         )
 
     elif price_difference < 0:
@@ -1557,13 +2192,11 @@ def compare_districts(stats_map):
         print(
             f"北投區主流平均單價"
             f"比士林區高 "
-            f"{abs(price_difference):,.2f}"
-            f" 萬/坪"
+            f"{abs(price_difference):,.2f} 萬/坪"
         )
 
         print(
-            f"約高 "
-            f"{abs(percentage):,.2f}%"
+            f"約高 {abs(percentage):,.2f}%"
         )
 
     else:
@@ -1577,154 +2210,6 @@ def compare_districts(stats_map):
 
 
 # ============================================================
-# 市場熱點摘要
-# ============================================================
-
-def print_market_hotspot_summary(
-    district_items
-):
-
-    print()
-    print(
-        "【八、市場熱點摘要】"
-    )
-
-    if not district_items:
-
-        print(
-            "沒有足夠資料。"
-        )
-
-        return
-
-    route_groups = {}
-
-    for item in district_items:
-
-        route = item["route"]
-
-        if route not in route_groups:
-
-            route_groups[route] = []
-
-        route_groups[route].append(
-            item
-        )
-
-    valid = {
-
-        route: group
-
-        for route, group
-        in route_groups.items()
-
-        if len(group) >= 2
-    }
-
-    if not valid:
-
-        print(
-            "目前沒有足夠路段資料。"
-        )
-
-        return
-
-    # --------------------------------------------------------
-    # 最熱門
-    # --------------------------------------------------------
-
-    hottest_route = max(
-        valid.items(),
-        key=lambda x:
-        len(x[1])
-        *
-        mean(
-            item["unit_price"]
-            for item in x[1]
-        )
-    )
-
-    route = hottest_route[0]
-    group = hottest_route[1]
-
-    avg_price = mean(
-        item["unit_price"]
-        for item in group
-    )
-
-    print()
-    print(
-        "🔥 市場熱度最高路段："
-    )
-
-    print(
-        f"  {route}"
-        f"｜交易 {len(group)} 筆"
-        f"｜平均 {avg_price:,.2f} 萬/坪"
-    )
-
-    # --------------------------------------------------------
-    # 最高價
-    # --------------------------------------------------------
-
-    highest_price_route = max(
-        valid.items(),
-        key=lambda x:
-        mean(
-            item["unit_price"]
-            for item in x[1]
-        )
-    )
-
-    route = highest_price_route[0]
-    group = highest_price_route[1]
-
-    avg_price = mean(
-        item["unit_price"]
-        for item in group
-    )
-
-    print()
-    print(
-        "💰 平均單價最高路段："
-    )
-
-    print(
-        f"  {route}"
-        f"｜交易 {len(group)} 筆"
-        f"｜平均 {avg_price:,.2f} 萬/坪"
-    )
-
-    # --------------------------------------------------------
-    # 交易量最高
-    # --------------------------------------------------------
-
-    highest_volume_route = max(
-        valid.items(),
-        key=lambda x: len(x[1])
-    )
-
-    route = highest_volume_route[0]
-    group = highest_volume_route[1]
-
-    avg_price = mean(
-        item["unit_price"]
-        for item in group
-    )
-
-    print()
-    print(
-        "📊 交易量最高路段："
-    )
-
-    print(
-        f"  {route}"
-        f"｜交易 {len(group)} 筆"
-        f"｜平均 {avg_price:,.2f} 萬/坪"
-    )
-
-
-# ============================================================
 # 主程式
 # ============================================================
 
@@ -1732,21 +2217,13 @@ def main():
 
     print()
     print("=" * 70)
-
     print(
         "台北市士林區／北投區房市監控系統"
     )
-
     print(
-        "第七階段："
-        "路段行情＋住宅類型＋市場熱點分析"
+        "第八階段：歷史價格趨勢＋路段＋住宅類型＋市場熱點分析"
     )
-
     print("=" * 70)
-
-    # --------------------------------------------------------
-    # 讀取資料
-    # --------------------------------------------------------
 
     records = load_data()
 
@@ -1759,13 +2236,13 @@ def main():
 
         return
 
-    # --------------------------------------------------------
-    # 分析
-    # --------------------------------------------------------
-
     stats_map = {}
 
-    all_items_map = {}
+    district_items = {}
+
+    # --------------------------------------------------------
+    # 分析兩區
+    # --------------------------------------------------------
 
     for district in sorted(
         TARGET_DISTRICTS
@@ -1776,7 +2253,9 @@ def main():
             district
         )
 
-        all_items_map[district] = items
+        district_items[
+            district
+        ] = items
 
         stats = print_district_report(
             district,
@@ -1785,11 +2264,9 @@ def main():
 
         if stats:
 
-            stats_map[district] = stats
-
-            print_market_hotspot_summary(
-                items
-            )
+            stats_map[
+                district
+            ] = stats
 
     # --------------------------------------------------------
     # 士林／北投比較
@@ -1800,21 +2277,26 @@ def main():
     )
 
     # --------------------------------------------------------
+    # 歷史比較
+    # --------------------------------------------------------
+
+    compare_historical_trends(
+        district_items
+    )
+
+    # --------------------------------------------------------
     # 完成
     # --------------------------------------------------------
 
     print()
     print("=" * 70)
-
     print(
-        "第七階段房市分析完成"
+        "第八階段房市分析完成"
     )
-
     print(
-        "路段行情、交易量、價格排名、"
-        "市場熱點分析完成"
+        "歷史趨勢、路段趨勢、"
+        "住宅類型與市場熱點分析完成"
     )
-
     print("=" * 70)
 
 
