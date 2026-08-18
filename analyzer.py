@@ -2,21 +2,27 @@
 
 """
 台北市士林區／北投區房市監控系統
-第五階段：專業住宅買賣房價分析
+第五階段＋5.5階段：專業住宅買賣房價分析＋交易資料品質檢查
 
-功能：
-1. 讀取台北市交易資料
+主要功能：
+
+1. 讀取 data/taipei_transactions.csv
 2. 分析士林區、北投區
-3. 只分析「買賣」
-4. 使用 uprice 作為交易單價
-5. 使用 tprice 作為交易總價
-6. 使用 farea 作為建物面積
-7. IQR 異常值偵測
-8. 原始行情與主流行情分開統計
-9. 住宅類型統計
-10. 士林區／北投區比較
-11. 高低價異常案例
-12. 價格區間分布
+3. 僅分析「買賣」交易
+4. uprice = 交易單價（萬元／坪）
+5. tprice = 交易總價（萬元）
+6. 若 tprice 無資料，備援使用 price
+7. farea = 建物移轉總面積（坪）
+8. 排除明顯不合理建物面積
+9. IQR 異常交易分析
+10. 住宅類型分析
+11. 單價區間分析
+12. 最高／最低單價案例
+13. 士林區／北投區比較
+
+注意：
+本程式不會因為「單價很高」就直接刪除交易。
+高單價交易先保留，再透過 IQR 判斷是否屬於異常候選。
 """
 
 import csv
@@ -37,10 +43,27 @@ TARGET_DISTRICTS = {
 
 
 # ============================================================
+# 第 5.5 階段：資料品質設定
+# ============================================================
+
+# 太小的建物面積，通常不是正常住宅建物交易
+# 例如之前出現的 0.31 坪
+MIN_RESIDENTIAL_AREA = 5.0
+
+# 避免非常誇張的大面積資料混入一般住宅行情
+MAX_RESIDENTIAL_AREA = 500.0
+
+
+# ============================================================
 # 數字轉換
 # ============================================================
 
 def to_float(value):
+    """
+    將 CSV 欄位轉成 float。
+
+    無法轉換時回傳 None。
+    """
 
     if value is None:
         return None
@@ -56,7 +79,9 @@ def to_float(value):
         "N/A",
         "NA",
         "None",
+        "none",
         "null",
+        "NULL",
         "-",
         "--",
     }
@@ -77,11 +102,14 @@ def to_float(value):
 # 四分位數
 # ============================================================
 
-def percentile(values, p):
-
+def percentile(values, percent):
     """
-    計算簡易線性插值百分位數。
-    p 範圍：0～1
+    計算百分位數。
+
+    percent:
+        0.25 = Q1
+        0.50 = 中位數
+        0.75 = Q3
     """
 
     if not values:
@@ -92,10 +120,9 @@ def percentile(values, p):
     if len(data) == 1:
         return data[0]
 
-    position = (len(data) - 1) * p
+    position = (len(data) - 1) * percent
 
     lower = int(position)
-
     upper = lower + 1
 
     if upper >= len(data):
@@ -107,36 +134,6 @@ def percentile(values, p):
         data[lower]
         + (data[upper] - data[lower]) * weight
     )
-
-
-# ============================================================
-# IQR 異常值
-# ============================================================
-
-def get_iqr_bounds(values):
-
-    """
-    使用 IQR 方法判斷異常價格。
-
-    下限 = Q1 - 1.5 × IQR
-    上限 = Q3 + 1.5 × IQR
-    """
-
-    if len(values) < 4:
-
-        return None, None
-
-    q1 = percentile(values, 0.25)
-
-    q3 = percentile(values, 0.75)
-
-    iqr = q3 - q1
-
-    lower = q1 - 1.5 * iqr
-
-    upper = q3 + 1.5 * iqr
-
-    return lower, upper
 
 
 # ============================================================
@@ -152,94 +149,172 @@ def load_data():
 
     if not os.path.exists(INPUT_FILE):
 
-        print(
-            f"找不到資料檔案：{INPUT_FILE}"
-        )
+        print()
+        print(f"找不到資料檔案：{INPUT_FILE}")
+        print()
 
         return []
 
     records = []
 
-    with open(
-        INPUT_FILE,
-        "r",
-        encoding="utf-8-sig",
-        newline=""
-    ) as csvfile:
+    try:
 
-        reader = csv.DictReader(csvfile)
+        with open(
+            INPUT_FILE,
+            "r",
+            encoding="utf-8-sig",
+            newline=""
+        ) as csvfile:
 
-        fieldnames = reader.fieldnames or []
+            reader = csv.DictReader(csvfile)
 
-        print(
-            f"資料欄位數：{len(fieldnames)}"
-        )
+            fieldnames = reader.fieldnames or []
 
-        # ----------------------------------------------------
-        # 檢查必要欄位
-        # ----------------------------------------------------
+            print(
+                f"資料欄位數：{len(fieldnames)}"
+            )
 
-        required_fields = [
-            "case_t",
-            "district",
-            "uprice",
-            "tprice",
-            "farea",
-            "buitype",
-            "location",
-        ]
+            print()
+
+            # ------------------------------------------------
+            # 必要欄位檢查
+            # ------------------------------------------------
+
+            required_fields = [
+                "case_t",
+                "district",
+                "uprice",
+                "farea",
+                "buitype",
+                "location",
+            ]
+
+            print("必要欄位檢查：")
+
+            for field in required_fields:
+
+                if field in fieldnames:
+
+                    print(f"  ✓ {field}")
+
+                else:
+
+                    print(f"  ✗ {field}（缺少）")
+
+            print()
+
+            if fieldnames:
+
+                print("資料欄位：")
+                print(", ".join(fieldnames))
+
+            # ------------------------------------------------
+            # 讀取目標行政區
+            # ------------------------------------------------
+
+            for row in reader:
+
+                district = str(
+                    row.get("district", "")
+                ).strip()
+
+                if district not in TARGET_DISTRICTS:
+
+                    continue
+
+                records.append(row)
+
+    except Exception as error:
 
         print()
-        print("必要欄位檢查：")
+        print(
+            f"讀取 CSV 發生錯誤：{error}"
+        )
 
-        for field in required_fields:
+        return []
 
-            if field in fieldnames:
+    print()
 
-                print(
-                    f"  ✓ {field}"
-                )
-
-            else:
-
-                print(
-                    f"  ✗ 缺少 {field}"
-                )
-
-        # ----------------------------------------------------
-        # 讀取指定行政區
-        # ----------------------------------------------------
-
-        for row in reader:
-
-            district = str(
-                row.get("district", "")
-            ).strip()
-
-            if district not in TARGET_DISTRICTS:
-
-                continue
-
-            records.append(row)
+    print(
+        f"讀取到士林區／北投區資料："
+        f"{len(records):,} 筆"
+    )
 
     return records
 
 
 # ============================================================
-# 整理單一行政區有效交易
+# 取得總價
 # ============================================================
 
-def prepare_district_records(records, district):
+def get_total_price(row):
+    """
+    優先使用 tprice。
 
-    result = []
+    若 tprice 沒有資料，
+    備援使用 price。
+
+    回傳：
+        總價（萬元）
+    """
+
+    total_price = to_float(
+        row.get("tprice")
+    )
+
+    if (
+        total_price is not None
+        and total_price > 0
+    ):
+
+        return total_price
+
+    total_price = to_float(
+        row.get("price")
+    )
+
+    if (
+        total_price is not None
+        and total_price > 0
+    ):
+
+        return total_price
+
+    return None
+
+
+# ============================================================
+# 第 5.5 階段
+# 準備單一行政區住宅交易
+# ============================================================
+
+def prepare_district_records(
+    records,
+    district
+):
+
+    valid_items = []
+
+    excluded_count = 0
+
+    excluded_small_area = 0
+    excluded_large_area = 0
+    excluded_no_price = 0
+    excluded_no_area = 0
+    excluded_no_unit_price = 0
 
     for row in records:
+
+        # ----------------------------------------------------
+        # 行政區
+        # ----------------------------------------------------
 
         row_district = str(
             row.get("district", "")
         ).strip()
 
         if row_district != district:
+
             continue
 
         # ----------------------------------------------------
@@ -251,6 +326,7 @@ def prepare_district_records(records, district):
         ).strip()
 
         if case_type != "買賣":
+
             continue
 
         # ----------------------------------------------------
@@ -261,18 +337,30 @@ def prepare_district_records(records, district):
             row.get("uprice")
         )
 
-        if unit_price is None or unit_price <= 0:
+        if (
+            unit_price is None
+            or unit_price <= 0
+        ):
+
+            excluded_count += 1
+            excluded_no_unit_price += 1
+
             continue
 
         # ----------------------------------------------------
         # 總價
         # ----------------------------------------------------
 
-        total_price = to_float(
-            row.get("tprice")
-        )
+        total_price = get_total_price(row)
 
-        if total_price is None or total_price <= 0:
+        if (
+            total_price is None
+            or total_price <= 0
+        ):
+
+            excluded_count += 1
+            excluded_no_price += 1
+
             continue
 
         # ----------------------------------------------------
@@ -283,19 +371,40 @@ def prepare_district_records(records, district):
             row.get("farea")
         )
 
-        # ----------------------------------------------------
-        # 如果面積缺失
-        # 用總價／單價估算
-        # ----------------------------------------------------
+        if (
+            area is None
+            or area <= 0
+        ):
 
-        if area is None or area <= 0:
+            excluded_count += 1
+            excluded_no_area += 1
 
-            area = total_price / unit_price
-
-        if area <= 0:
             continue
 
-        result.append({
+        # ----------------------------------------------------
+        # 第 5.5 階段：
+        # 排除明顯不合理住宅面積
+        # ----------------------------------------------------
+
+        if area < MIN_RESIDENTIAL_AREA:
+
+            excluded_count += 1
+            excluded_small_area += 1
+
+            continue
+
+        if area > MAX_RESIDENTIAL_AREA:
+
+            excluded_count += 1
+            excluded_large_area += 1
+
+            continue
+
+        # ----------------------------------------------------
+        # 建立有效交易資料
+        # ----------------------------------------------------
+
+        valid_items.append({
 
             "row": row,
 
@@ -307,145 +416,34 @@ def prepare_district_records(records, district):
 
         })
 
-    return result
-
-
-# ============================================================
-# 行情統計
-# ============================================================
-
-def calculate_stats(items):
-
-    if not items:
-        return None
-
-    prices = [
-        x["unit_price"]
-        for x in items
-    ]
-
-    totals = [
-        x["total_price"]
-        for x in items
-    ]
-
-    areas = [
-        x["area"]
-        for x in items
-    ]
-
-    lower, upper = get_iqr_bounds(prices)
-
-    normal_items = []
-
-    abnormal_items = []
-
-    for item in items:
-
-        price = item["unit_price"]
-
-        if (
-            lower is not None
-            and upper is not None
-            and (
-                price < lower
-                or price > upper
-            )
-        ):
-
-            abnormal_items.append(item)
-
-        else:
-
-            normal_items.append(item)
-
-    normal_prices = [
-        x["unit_price"]
-        for x in normal_items
-    ]
-
-    normal_totals = [
-        x["total_price"]
-        for x in normal_items
-    ]
-
-    normal_areas = [
-        x["area"]
-        for x in normal_items
-    ]
+    # --------------------------------------------------------
+    # 回傳
+    # --------------------------------------------------------
 
     return {
+        "items": valid_items,
 
-        "count": len(items),
+        "excluded_count": excluded_count,
 
-        "prices": prices,
+        "excluded_small_area": excluded_small_area,
 
-        "totals": totals,
+        "excluded_large_area": excluded_large_area,
 
-        "areas": areas,
+        "excluded_no_price": excluded_no_price,
 
-        "average_price": mean(prices),
+        "excluded_no_area": excluded_no_area,
 
-        "median_price": median(prices),
-
-        "max_price": max(prices),
-
-        "min_price": min(prices),
-
-        "average_total": mean(totals),
-
-        "average_area": mean(areas),
-
-        "q1": percentile(prices, 0.25),
-
-        "q3": percentile(prices, 0.75),
-
-        "iqr_lower": lower,
-
-        "iqr_upper": upper,
-
-        "normal_items": normal_items,
-
-        "abnormal_items": abnormal_items,
-
-        "normal_count": len(normal_items),
-
-        "abnormal_count": len(abnormal_items),
-
-        "normal_average_price": (
-            mean(normal_prices)
-            if normal_prices
-            else None
-        ),
-
-        "normal_median_price": (
-            median(normal_prices)
-            if normal_prices
-            else None
-        ),
-
-        "normal_average_total": (
-            mean(normal_totals)
-            if normal_totals
-            else None
-        ),
-
-        "normal_average_area": (
-            mean(normal_areas)
-            if normal_areas
-            else None
-        ),
-
+        "excluded_no_unit_price": excluded_no_unit_price,
     }
 
 
 # ============================================================
-# 住宅類型分析
+# 分析住宅類型
 # ============================================================
 
 def analyze_building_types(items):
 
-    groups = {}
+    building_types = {}
 
     for item in items:
 
@@ -456,101 +454,319 @@ def analyze_building_types(items):
         ).strip()
 
         if building_type == "":
+
             building_type = "其他"
 
-        if building_type not in groups:
+        building_types[building_type] = (
+            building_types.get(
+                building_type,
+                0
+            ) + 1
+        )
 
-            groups[building_type] = []
+    if not building_types:
 
-        groups[building_type].append(item)
+        print("沒有住宅類型資料。")
 
-    print()
-    print("住宅類型行情：")
+        return
 
-    sorted_groups = sorted(
-        groups.items(),
-        key=lambda x: len(x[1]),
+    sorted_types = sorted(
+        building_types.items(),
+        key=lambda x: x[1],
         reverse=True
     )
 
-    for building_type, group in sorted_groups:
+    print()
+
+    print("住宅類型行情：")
+
+    for building_type, count in sorted_types:
+
+        type_items = [
+
+            item
+
+            for item in items
+
+            if str(
+                item["row"].get(
+                    "buitype",
+                    ""
+                )
+            ).strip() == building_type
+
+        ]
+
+        if not type_items:
+
+            continue
 
         prices = [
-            x["unit_price"]
-            for x in group
+            item["unit_price"]
+            for item in type_items
         ]
 
         print(
             f"  {building_type}"
-            f"：{len(group):,} 筆"
-            f"｜平均 {mean(prices):,.2f} 萬/坪"
-            f"｜中位數 {median(prices):,.2f} 萬/坪"
+            f"：{count:,} 筆"
+            f"｜平均 "
+            f"{mean(prices):,.2f} 萬/坪"
+            f"｜中位數 "
+            f"{median(prices):,.2f} 萬/坪"
         )
 
 
 # ============================================================
-# 價格區間分析
+# 單價區間
 # ============================================================
 
 def analyze_price_ranges(items):
 
-    ranges = {
+    ranges = [
 
-        "50萬以下": 0,
+        ("50萬以下", 0, 50),
 
-        "50～70萬": 0,
+        ("50~70萬", 50, 70),
 
-        "70～90萬": 0,
+        ("70~90萬", 70, 90),
 
-        "90～120萬": 0,
+        ("90~120萬", 90, 120),
 
-        "120萬以上": 0,
+        ("120萬以上", 120, float("inf")),
 
-    }
+    ]
+
+    print()
+
+    print("單價區間分布：")
+
+    for label, lower, upper in ranges:
+
+        count = 0
+
+        for item in items:
+
+            price = item["unit_price"]
+
+            if (
+                price >= lower
+                and price < upper
+            ):
+
+                count += 1
+
+        print(
+            f"  {label}：{count:,} 筆"
+        )
+
+
+# ============================================================
+# 計算統計
+# ============================================================
+
+def calculate_stats(items):
+
+    if not items:
+
+        return None
+
+    unit_prices = [
+        item["unit_price"]
+        for item in items
+    ]
+
+    total_prices = [
+        item["total_price"]
+        for item in items
+        if item["total_price"] > 0
+    ]
+
+    areas = [
+        item["area"]
+        for item in items
+        if item["area"] > 0
+    ]
+
+    # --------------------------------------------------------
+    # Q1 / Q3 / IQR
+    # --------------------------------------------------------
+
+    q1 = percentile(
+        unit_prices,
+        0.25
+    )
+
+    q3 = percentile(
+        unit_prices,
+        0.75
+    )
+
+    if (
+        q1 is not None
+        and q3 is not None
+    ):
+
+        iqr = q3 - q1
+
+        iqr_lower = (
+            q1 - 1.5 * iqr
+        )
+
+        iqr_upper = (
+            q3 + 1.5 * iqr
+        )
+
+    else:
+
+        iqr = None
+        iqr_lower = None
+        iqr_upper = None
+
+    # --------------------------------------------------------
+    # 主流／異常
+    # --------------------------------------------------------
+
+    normal_items = []
+    abnormal_items = []
 
     for item in items:
 
         price = item["unit_price"]
 
-        if price < 50:
+        if (
+            iqr_lower is not None
+            and iqr_upper is not None
+            and (
+                price < iqr_lower
+                or price > iqr_upper
+            )
+        ):
 
-            ranges["50萬以下"] += 1
-
-        elif price < 70:
-
-            ranges["50～70萬"] += 1
-
-        elif price < 90:
-
-            ranges["70～90萬"] += 1
-
-        elif price < 120:
-
-            ranges["90～120萬"] += 1
+            abnormal_items.append(item)
 
         else:
 
-            ranges["120萬以上"] += 1
+            normal_items.append(item)
 
-    print()
-    print("單價區間分布：")
+    normal_prices = [
+        item["unit_price"]
+        for item in normal_items
+    ]
 
-    for name, count in ranges.items():
+    normal_total = [
+        item["total_price"]
+        for item in normal_items
+    ]
 
-        print(
-            f"  {name}：{count:,} 筆"
+    normal_area = [
+        item["area"]
+        for item in normal_items
+    ]
+
+    if normal_prices:
+
+        normal_average_price = mean(
+            normal_prices
         )
+
+        normal_median_price = median(
+            normal_prices
+        )
+
+        normal_average_total = mean(
+            normal_total
+        )
+
+        normal_average_area = mean(
+            normal_area
+        )
+
+    else:
+
+        normal_average_price = None
+        normal_median_price = None
+        normal_average_total = None
+        normal_average_area = None
+
+    return {
+
+        "count": len(items),
+
+        "average_price": mean(
+            unit_prices
+        ),
+
+        "median_price": median(
+            unit_prices
+        ),
+
+        "max_price": max(
+            unit_prices
+        ),
+
+        "min_price": min(
+            unit_prices
+        ),
+
+        "average_total": mean(
+            total_prices
+        ) if total_prices else 0,
+
+        "average_area": mean(
+            areas
+        ) if areas else 0,
+
+        "q1": q1,
+
+        "q3": q3,
+
+        "iqr": iqr,
+
+        "iqr_lower": iqr_lower,
+
+        "iqr_upper": iqr_upper,
+
+        "normal_count": len(
+            normal_items
+        ),
+
+        "abnormal_count": len(
+            abnormal_items
+        ),
+
+        "normal_average_price":
+            normal_average_price,
+
+        "normal_median_price":
+            normal_median_price,
+
+        "normal_average_total":
+            normal_average_total,
+
+        "normal_average_area":
+            normal_average_area,
+
+        "abnormal_items":
+            abnormal_items,
+
+        "normal_items":
+            normal_items,
+
+    }
 
 
 # ============================================================
-# 顯示異常案例
+# 異常交易
 # ============================================================
 
 def show_abnormal_cases(stats):
 
-    abnormal = stats.get("abnormal_items", [])
+    abnormal = stats[
+        "abnormal_items"
+    ]
 
     print()
+
     print(
         f"⚠️ IQR 異常交易候選："
         f"{len(abnormal):,} 筆"
@@ -558,120 +774,96 @@ def show_abnormal_cases(stats):
 
     if not abnormal:
 
-        print("  沒有偵測到明顯異常價格。")
+        print(
+            "  沒有偵測到明顯異常價格。"
+        )
 
         return
-
-    # --------------------------------------------------------
-    # 取得 IQR 合理上下限
-    # --------------------------------------------------------
-
-    lower_limit = stats.get("iqr_lower")
-    upper_limit = stats.get("iqr_upper")
-
-    # --------------------------------------------------------
-    # 分開高價異常與低價異常
-    #
-    # 高價異常：
-    # 單價 > IQR 合理上限
-    #
-    # 低價異常：
-    # 單價 < IQR 合理下限
-    # --------------------------------------------------------
-
-    if upper_limit is not None:
-
-        high_abnormal = [
-            item
-            for item in abnormal
-            if item["unit_price"] > upper_limit
-        ]
-
-    else:
-
-        high_abnormal = []
-
-
-    if lower_limit is not None:
-
-        low_abnormal = [
-            item
-            for item in abnormal
-            if item["unit_price"] < lower_limit
-        ]
-
-    else:
-
-        low_abnormal = []
 
     # --------------------------------------------------------
     # 高價異常
     # --------------------------------------------------------
 
+    high_abnormal = sorted(
+        abnormal,
+        key=lambda x: x["unit_price"],
+        reverse=True
+    )
+
     print()
+
     print(
         f"  🔴 高價異常候選："
         f"{len(high_abnormal):,} 筆"
     )
 
-    if high_abnormal:
+    for item in high_abnormal[:5]:
 
-        high_abnormal = sorted(
-            high_abnormal,
-            key=lambda x: x["unit_price"],
-            reverse=True
-        )[:5]
-
-        for item in high_abnormal:
-
-            row = item["row"]
-
-            print(
-                f"    {item['unit_price']:,.2f} 萬/坪"
-                f"｜{row.get('location', '無資料')}"
-                f"｜總價 {item['total_price']:,.2f} 萬"
-                f"｜面積 {item['area']:,.2f} 坪"
-            )
-
-    else:
+        row = item["row"]
 
         print(
-            "    沒有低於 IQR 合理上限以上的高價異常交易。"
+            f"    "
+            f"{item['unit_price']:,.2f} 萬/坪"
+            f"｜"
+            f"{row.get('location', '無資料')}"
+            f"｜總價 "
+            f"{item['total_price']:,.2f} 萬"
+            f"｜面積 "
+            f"{item['area']:,.2f} 坪"
         )
 
     # --------------------------------------------------------
     # 低價異常
     # --------------------------------------------------------
 
+    low_abnormal = sorted(
+        abnormal,
+        key=lambda x: x["unit_price"]
+    )
+
+    low_abnormal = [
+
+        item
+
+        for item in low_abnormal
+
+        if (
+            stats["iqr_lower"] is not None
+            and item["unit_price"]
+            < stats["iqr_lower"]
+        )
+
+    ]
+
     print()
+
     print(
         f"  🔵 低價異常候選："
         f"{len(low_abnormal):,} 筆"
     )
 
-    if low_abnormal:
-
-        low_abnormal = sorted(
-            low_abnormal,
-            key=lambda x: x["unit_price"]
-        )[:5]
-
-        for item in low_abnormal:
-
-            row = item["row"]
-
-            print(
-                f"    {item['unit_price']:,.2f} 萬/坪"
-                f"｜{row.get('location', '無資料')}"
-                f"｜總價 {item['total_price']:,.2f} 萬"
-                f"｜面積 {item['area']:,.2f} 坪"
-            )
-
-    else:
+    if not low_abnormal:
 
         print(
             "    沒有低於 IQR 合理下限的低價異常交易。"
         )
+
+    else:
+
+        for item in low_abnormal[:5]:
+
+            row = item["row"]
+
+            print(
+                f"    "
+                f"{item['unit_price']:,.2f} 萬/坪"
+                f"｜"
+                f"{row.get('location', '無資料')}"
+                f"｜總價 "
+                f"{item['total_price']:,.2f} 萬"
+                f"｜面積 "
+                f"{item['area']:,.2f} 坪"
+            )
 
 
 # ============================================================
@@ -680,13 +872,20 @@ def show_abnormal_cases(stats):
 
 def print_district_report(
     district,
-    items
+    prepared_data
 ):
 
     print()
+
     print("=" * 70)
-    print(f"{district} 專業房價分析")
+
+    print(
+        f"{district} 專業房價分析"
+    )
+
     print("=" * 70)
+
+    items = prepared_data["items"]
 
     if not items:
 
@@ -696,14 +895,95 @@ def print_district_report(
 
         return None
 
-    stats = calculate_stats(items)
+    # --------------------------------------------------------
+    # 資料品質
+    # --------------------------------------------------------
+
+    print()
+
+    print(
+        "【資料品質檢查】"
+    )
+
+    print(
+        f"原始符合行政區／買賣資料："
+        f"{len(items) + prepared_data['excluded_count']:,} 筆"
+    )
+
+    print(
+        f"有效住宅交易："
+        f"{len(items):,} 筆"
+    )
+
+    print(
+        f"品質排除："
+        f"{prepared_data['excluded_count']:,} 筆"
+    )
+
+    if prepared_data[
+        "excluded_small_area"
+    ] > 0:
+
+        print(
+            f"  └─ 建物面積小於 "
+            f"{MIN_RESIDENTIAL_AREA:.1f} 坪："
+            f"{prepared_data['excluded_small_area']:,} 筆"
+        )
+
+    if prepared_data[
+        "excluded_large_area"
+    ] > 0:
+
+        print(
+            f"  └─ 建物面積大於 "
+            f"{MAX_RESIDENTIAL_AREA:.1f} 坪："
+            f"{prepared_data['excluded_large_area']:,} 筆"
+        )
+
+    if prepared_data[
+        "excluded_no_area"
+    ] > 0:
+
+        print(
+            f"  └─ 無有效建物面積："
+            f"{prepared_data['excluded_no_area']:,} 筆"
+        )
+
+    if prepared_data[
+        "excluded_no_price"
+    ] > 0:
+
+        print(
+            f"  └─ 無有效總價："
+            f"{prepared_data['excluded_no_price']:,} 筆"
+        )
+
+    if prepared_data[
+        "excluded_no_unit_price"
+    ] > 0:
+
+        print(
+            f"  └─ 無有效單價："
+            f"{prepared_data['excluded_no_unit_price']:,} 筆"
+        )
+
+    # --------------------------------------------------------
+    # 統計
+    # --------------------------------------------------------
+
+    stats = calculate_stats(
+        items
+    )
 
     # --------------------------------------------------------
     # 原始行情
     # --------------------------------------------------------
 
     print()
-    print("【一、原始交易行情】")
+
+    print(
+        "【一、原始交易行情】"
+    )
 
     print(
         f"有效住宅買賣："
@@ -745,7 +1025,10 @@ def print_district_report(
     # --------------------------------------------------------
 
     print()
-    print("【二、主流行情／異常值分析】")
+
+    print(
+        "【二、主流行情／異常值分析】"
+    )
 
     print(
         f"Q1："
@@ -779,7 +1062,10 @@ def print_district_report(
         f"{stats['abnormal_count']:,} 筆"
     )
 
-    if stats["normal_average_price"] is not None:
+    if (
+        stats["normal_average_price"]
+        is not None
+    ):
 
         print(
             f"主流平均單價："
@@ -806,7 +1092,10 @@ def print_district_report(
     # --------------------------------------------------------
 
     print()
-    print("【三、住宅類型】")
+
+    print(
+        "【三、住宅類型】"
+    )
 
     analyze_building_types(
         items
@@ -817,7 +1106,10 @@ def print_district_report(
     # --------------------------------------------------------
 
     print()
-    print("【四、單價區間】")
+
+    print(
+        "【四、單價區間】"
+    )
 
     analyze_price_ranges(
         items
@@ -828,7 +1120,10 @@ def print_district_report(
     # --------------------------------------------------------
 
     print()
-    print("【五、異常交易候選】")
+
+    print(
+        "【五、異常交易候選】"
+    )
 
     show_abnormal_cases(
         stats
@@ -846,7 +1141,10 @@ def print_district_report(
     highest_row = highest["row"]
 
     print()
-    print("【最高單價案例】")
+
+    print(
+        "【最高單價案例】"
+    )
 
     print(
         f"單價："
@@ -880,7 +1178,10 @@ def print_district_report(
     lowest_row = lowest["row"]
 
     print()
-    print("【最低單價案例】")
+
+    print(
+        "【最低單價案例】"
+    )
 
     print(
         f"單價："
@@ -903,6 +1204,7 @@ def print_district_report(
     )
 
     print()
+
     print("=" * 70)
 
     return stats
@@ -914,13 +1216,18 @@ def print_district_report(
 
 def compare_districts(stats_map):
 
-    shilin = stats_map.get("士林區")
+    shilin = stats_map.get(
+        "士林區"
+    )
 
-    beitou = stats_map.get("北投區")
+    beitou = stats_map.get(
+        "北投區"
+    )
 
     if not shilin or not beitou:
 
         print()
+
         print(
             "無法進行士林區／北投區比較。"
         )
@@ -928,11 +1235,17 @@ def compare_districts(stats_map):
         return
 
     print()
+
     print("=" * 70)
-    print("士林區 vs 北投區 房價比較")
+
+    print(
+        "士林區 vs 北投區 房價比較"
+    )
+
     print("=" * 70)
 
     print()
+
     print(
         f"{'項目':<18}"
         f"{'士林區':>15}"
@@ -981,16 +1294,38 @@ def compare_districts(stats_map):
     # 價差
     # --------------------------------------------------------
 
-    price_difference = (
+    shilin_main = (
         shilin["normal_average_price"]
-        - beitou["normal_average_price"]
     )
 
-    if beitou["normal_average_price"] != 0:
+    beitou_main = (
+        beitou["normal_average_price"]
+    )
+
+    if (
+        shilin_main is None
+        or beitou_main is None
+    ):
+
+        print()
+
+        print(
+            "主流平均單價資料不足，"
+            "無法計算價格差異。"
+        )
+
+        return
+
+    price_difference = (
+        shilin_main
+        - beitou_main
+    )
+
+    if beitou_main != 0:
 
         percentage = (
             price_difference
-            / beitou["normal_average_price"]
+            / beitou_main
             * 100
         )
 
@@ -999,7 +1334,10 @@ def compare_districts(stats_map):
         percentage = 0
 
     print()
-    print("【市場價格差異】")
+
+    print(
+        "【市場價格差異】"
+    )
 
     if price_difference > 0:
 
@@ -1032,6 +1370,7 @@ def compare_districts(stats_map):
         )
 
     print()
+
     print("=" * 70)
 
 
@@ -1042,9 +1381,19 @@ def compare_districts(stats_map):
 def main():
 
     print()
+
     print("=" * 70)
-    print("台北市士林區／北投區房市監控系統")
-    print("第五階段：專業住宅買賣房價分析")
+
+    print(
+        "台北市士林區／北投區房市監控系統"
+    )
+
+    print(
+        "第五階段＋5.5階段："
+        "專業住宅買賣房價分析"
+        "＋交易資料品質檢查"
+    )
+
     print("=" * 70)
 
     # --------------------------------------------------------
@@ -1054,11 +1403,6 @@ def main():
     records = load_data()
 
     print()
-
-    print(
-        f"讀取到士林區／北投區資料："
-        f"{len(records):,} 筆"
-    )
 
     if not records:
 
@@ -1074,16 +1418,20 @@ def main():
 
     stats_map = {}
 
-    for district in sorted(TARGET_DISTRICTS):
+    for district in sorted(
+        TARGET_DISTRICTS
+    ):
 
-        items = prepare_district_records(
-            records,
-            district
+        prepared_data = (
+            prepare_district_records(
+                records,
+                district
+            )
         )
 
         stats = print_district_report(
             district,
-            items
+            prepared_data
         )
 
         if stats:
@@ -1103,8 +1451,13 @@ def main():
     # --------------------------------------------------------
 
     print()
+
     print("=" * 70)
-    print("第五階段房市分析完成")
+
+    print(
+        "第五階段＋5.5階段房市分析完成"
+    )
+
     print("=" * 70)
 
 
@@ -1113,5 +1466,4 @@ def main():
 # ============================================================
 
 if __name__ == "__main__":
-
     main()
