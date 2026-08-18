@@ -270,7 +270,7 @@ def load_data():
             "case_t",
             "district",
             "uprice",
-            "price",
+            "tprice",
             "farea",
             "buitype",
             "location",
