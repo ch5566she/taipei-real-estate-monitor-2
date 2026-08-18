@@ -3,6 +3,9 @@ name: 執行房市監控程式
 on:
   workflow_dispatch:
 
+  schedule:
+    - cron: "0 1 * * *"
+
 jobs:
   run-monitor:
     runs-on: ubuntu-latest
