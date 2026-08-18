@@ -320,9 +320,7 @@ def extract_route(location):
     text = str(location).strip()
 
     patterns = [
-        r"[\u4e00-\u9fff]{2,10}路\d*段?",
-        r"[\u4e00-\u9fff]{2,10}街",
-        r"[\u4e00-\u9fff]{2,10}大道",
+        r"[\u4e00-\u9fff]{2,10}(?:路|街|大道)(?:[0-9一二三四五六七八九十百]+段)?"
     ]
 
     for pattern in patterns:
@@ -333,7 +331,6 @@ def extract_route(location):
         )
 
         if match:
-
             return match.group(0)
 
     return "其他"
@@ -677,46 +674,120 @@ def monthly_trend(items):
 
 def determine_trend(months):
 
+    # ========================================================
+    # 第10階段：
+    # 改用「最近3個月」判斷市場方向
+    # 避免拿多年以前的價格直接與最新月份比較
+    # ========================================================
+
     if len(months) < 2:
-
         return {
             "direction": "資料不足",
             "change": None,
             "confidence": "低",
+            "period": "資料不足",
+            "latest_count": 0,
+            "window_count": 0,
+            "warning": "有效月份不足，無法判斷近期趨勢。",
         }
 
-    first = months[0]["average"]
+    # 最近3個月
+    recent = months[-3:]
 
-    latest = months[-1]["average"]
+    latest = recent[-1]
 
-    if first == 0:
+    latest_average = latest["average"]
+    latest_count = latest["count"]
 
+    # 最近3個月交易量
+    window_count = sum(
+        item["count"]
+        for item in recent
+    )
+
+    # ========================================================
+    # 前期加權平均
+    #
+    # 例如：
+    # 5月 16筆
+    # 6月 4筆
+    #
+    # 會按照交易筆數加權
+    # 避免單一小樣本月份影響太大
+    # ========================================================
+
+    previous_months = recent[:-1]
+
+    previous_total_count = sum(
+        item["count"]
+        for item in previous_months
+    )
+
+    if previous_total_count <= 0:
         return {
             "direction": "資料不足",
             "change": None,
             "confidence": "低",
+            "period": "最近3個月",
+            "latest_count": latest_count,
+            "window_count": window_count,
+            "warning": "前期交易樣本不足。",
         }
+
+    previous_weighted_average = (
+        sum(
+            item["average"] * item["count"]
+            for item in previous_months
+        )
+        / previous_total_count
+    )
+
+    if previous_weighted_average == 0:
+        return {
+            "direction": "資料不足",
+            "change": None,
+            "confidence": "低",
+            "period": "最近3個月",
+            "latest_count": latest_count,
+            "window_count": window_count,
+            "warning": "前期價格資料不足。",
+        }
+
+    # ========================================================
+    # 最近價格變化
+    # ========================================================
 
     change = (
         (
-            latest - first
+            latest_average
+            - previous_weighted_average
         )
-        / first
+        / previous_weighted_average
         * 100
     )
 
-    latest_count = months[-1]["count"]
+    # ========================================================
+    # 趨勢方向
+    # ========================================================
 
-    total_count = sum(
-        item["count"]
-        for item in months
-    )
+    if change >= 3:
+        direction = "上升"
 
-    if latest_count >= 10 and total_count >= 30:
+    elif change <= -3:
+        direction = "下降"
+
+    else:
+        direction = "盤整"
+
+    # ========================================================
+    # 樣本可信度
+    # ========================================================
+
+    if latest_count >= 10 and window_count >= 30:
 
         confidence = "高"
 
-    elif latest_count >= 5 and total_count >= 15:
+    elif latest_count >= 5 and window_count >= 15:
 
         confidence = "中"
 
@@ -724,17 +795,31 @@ def determine_trend(months):
 
         confidence = "低"
 
-    if change >= 3:
+    # ========================================================
+    # 小樣本警告
+    # ========================================================
 
-        direction = "上升"
+    if latest_count < 5:
 
-    elif change <= -3:
+        warning = (
+            f"最近月份僅 {latest_count} 筆交易，"
+            "近期趨勢僅供參考，"
+            "不宜直接解讀為整體房價走勢。"
+        )
 
-        direction = "下降"
+    elif latest_count < 10:
+
+        warning = (
+            f"最近月份 {latest_count} 筆交易，"
+            "樣本量中等，建議搭配路段與住宅類型觀察。"
+        )
 
     else:
 
-        direction = "盤整"
+        warning = (
+            "最近月份樣本量相對充足，"
+            "可作為近期市場方向參考。"
+        )
 
     return {
 
@@ -743,6 +828,14 @@ def determine_trend(months):
         "change": change,
 
         "confidence": confidence,
+
+        "period": "最近3個月",
+
+        "latest_count": latest_count,
+
+        "window_count": window_count,
+
+        "warning": warning,
 
     }
 
