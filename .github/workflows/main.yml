@@ -16,5 +16,15 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: 執行 main.py
+      - name: 執行主程式
         run: python main.py
+
+      - name: 執行房價資料蒐集
+        run: python data_collector.py
+
+      - name: 保存房價資料
+        uses: actions/upload-artifact@v4
+        with:
+          name: taipei-real-estate-data
+          path: data/taipei_transactions.csv
+          retention-days: 7
