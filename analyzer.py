@@ -548,7 +548,7 @@ def analyze_price_ranges(items):
 
 def show_abnormal_cases(stats):
 
-    abnormal = stats["abnormal_items"]
+    abnormal = stats.get("abnormal_items", [])
 
     print()
     print(
@@ -562,43 +562,115 @@ def show_abnormal_cases(stats):
 
         return
 
-    # 最高異常
-    highest = sorted(
-        abnormal,
-        key=lambda x: x["unit_price"],
-        reverse=True
-    )[:5]
+    # --------------------------------------------------------
+    # 取得 IQR 合理上下限
+    # --------------------------------------------------------
+
+    lower_limit = stats.get("iqr_lower")
+    upper_limit = stats.get("iqr_upper")
+
+    # --------------------------------------------------------
+    # 分開高價異常與低價異常
+    #
+    # 高價異常：
+    # 單價 > IQR 合理上限
+    #
+    # 低價異常：
+    # 單價 < IQR 合理下限
+    # --------------------------------------------------------
+
+    if upper_limit is not None:
+
+        high_abnormal = [
+            item
+            for item in abnormal
+            if item["unit_price"] > upper_limit
+        ]
+
+    else:
+
+        high_abnormal = []
+
+
+    if lower_limit is not None:
+
+        low_abnormal = [
+            item
+            for item in abnormal
+            if item["unit_price"] < lower_limit
+        ]
+
+    else:
+
+        low_abnormal = []
+
+    # --------------------------------------------------------
+    # 高價異常
+    # --------------------------------------------------------
 
     print()
-    print("  高價異常候選：")
+    print(
+        f"  🔴 高價異常候選："
+        f"{len(high_abnormal):,} 筆"
+    )
 
-    for item in highest:
+    if high_abnormal:
 
-        row = item["row"]
+        high_abnormal = sorted(
+            high_abnormal,
+            key=lambda x: x["unit_price"],
+            reverse=True
+        )[:5]
+
+        for item in high_abnormal:
+
+            row = item["row"]
+
+            print(
+                f"    {item['unit_price']:,.2f} 萬/坪"
+                f"｜{row.get('location', '無資料')}"
+                f"｜總價 {item['total_price']:,.2f} 萬"
+                f"｜面積 {item['area']:,.2f} 坪"
+            )
+
+    else:
 
         print(
-            f"    {item['unit_price']:,.2f} 萬/坪"
-            f"｜{row.get('location', '無資料')}"
-            f"｜總價 {item['total_price']:,.2f} 萬"
+            "    沒有低於 IQR 合理上限以上的高價異常交易。"
         )
 
-    # 最低異常
-    lowest = sorted(
-        abnormal,
-        key=lambda x: x["unit_price"]
-    )[:5]
+    # --------------------------------------------------------
+    # 低價異常
+    # --------------------------------------------------------
 
     print()
-    print("  低價異常候選：")
+    print(
+        f"  🔵 低價異常候選："
+        f"{len(low_abnormal):,} 筆"
+    )
 
-    for item in lowest:
+    if low_abnormal:
 
-        row = item["row"]
+        low_abnormal = sorted(
+            low_abnormal,
+            key=lambda x: x["unit_price"]
+        )[:5]
+
+        for item in low_abnormal:
+
+            row = item["row"]
+
+            print(
+                f"    {item['unit_price']:,.2f} 萬/坪"
+                f"｜{row.get('location', '無資料')}"
+                f"｜總價 {item['total_price']:,.2f} 萬"
+                f"｜面積 {item['area']:,.2f} 坪"
+            )
+
+    else:
 
         print(
-            f"    {item['unit_price']:,.2f} 萬/坪"
-            f"｜{row.get('location', '無資料')}"
-            f"｜總價 {item['total_price']:,.2f} 萬"
+            "    沒有低於 IQR 合理下限的低價異常交易。"
         )
 
 
