@@ -1122,9 +1122,17 @@ def create_html(report):
     if latest_transaction_date:
         if isinstance(latest_transaction_date, tuple):
             latest_transaction_date = (
-                f"{latest_transaction_date[0]}年"
-                f"{latest_transaction_date[1]}月"
-                f"{latest_transaction_date[2]}日"
+    max(latest_dates)
+    if latest_dates
+    else None
+)
+
+if latest_transaction_date:
+    if isinstance(latest_transaction_date, tuple):
+        latest_transaction_date = (
+            f"{latest_transaction_date[0]}年"
+            f"{latest_transaction_date[1]}月"
+            f"{latest_transaction_date[2]}日"
         )
     else:
         latest_transaction_date = str(latest_transaction_date)
