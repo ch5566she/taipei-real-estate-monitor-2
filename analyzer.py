@@ -23,7 +23,7 @@
 case_t   = 交易類型
 district = 行政區
 uprice   = 交易單價（萬元／坪）
-price    = 交易總價（萬元）
+tprice   = 交易總價（萬元）
 farea    = 建物移轉總面積（坪）
 buitype  = 建築型態
 location = 地址
@@ -407,7 +407,7 @@ def prepare_district_records(
         # ----------------------------------------------------
 
         total_price = to_float(
-            row.get("price")
+            row.get("tprice")
         )
 
         if total_price is None or total_price <= 0:
