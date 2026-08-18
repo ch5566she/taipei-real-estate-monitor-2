@@ -74,7 +74,109 @@ def parse_date(value):
     if not text:
         return None
 
+    # 去除日期後面的時間
     text = text.split(" ")[0]
+
+    # ========================================================
+    # 純數字日期
+    #
+    # 民國：
+    # 1150528 → 2026-05-28
+    #
+    # 西元：
+    # 20260528 → 2026-05-28
+    # ========================================================
+
+    compact = re.sub(
+        r"[^0-9]",
+        "",
+        text
+    )
+
+    # --------------------------------------------------------
+    # 民國 7 碼
+    # 例如：1150528
+    # --------------------------------------------------------
+
+    if re.fullmatch(
+        r"\d{7}",
+        compact
+    ):
+
+        year = (
+            int(compact[:3])
+            + 1911
+        )
+
+        month = int(
+            compact[3:5]
+        )
+
+        day = int(
+            compact[5:7]
+        )
+
+        try:
+
+            datetime(
+                year,
+                month,
+                day
+            )
+
+            return (
+                year,
+                month,
+                day
+            )
+
+        except ValueError:
+
+            pass
+
+    # --------------------------------------------------------
+    # 西元 8 碼
+    # 例如：20260528
+    # --------------------------------------------------------
+
+    if re.fullmatch(
+        r"\d{8}",
+        compact
+    ):
+
+        year = int(
+            compact[:4]
+        )
+
+        month = int(
+            compact[4:6]
+        )
+
+        day = int(
+            compact[6:8]
+        )
+
+        try:
+
+            datetime(
+                year,
+                month,
+                day
+            )
+
+            return (
+                year,
+                month,
+                day
+            )
+
+        except ValueError:
+
+            pass
+
+    # ========================================================
+    # 一般日期格式
+    # ========================================================
 
     text = (
         text
@@ -85,7 +187,13 @@ def parse_date(value):
         .replace(".", "-")
     )
 
+    # ========================================================
     # 民國日期
+    #
+    # 例如：
+    # 115-05-28
+    # ========================================================
+
     match = re.match(
         r"^(\d{2,3})-(\d{1,2})-(\d{1,2})$",
         text
@@ -93,16 +201,47 @@ def parse_date(value):
 
     if match:
 
-        year = int(match.group(1))
-        month = int(match.group(2))
-        day = int(match.group(3))
+        year = int(
+            match.group(1)
+        )
+
+        month = int(
+            match.group(2)
+        )
+
+        day = int(
+            match.group(3)
+        )
 
         if year < 1911:
+
             year += 1911
 
-        return year, month, day
+        try:
 
+            datetime(
+                year,
+                month,
+                day
+            )
+
+            return (
+                year,
+                month,
+                day
+            )
+
+        except ValueError:
+
+            return None
+
+    # ========================================================
     # 西元日期
+    #
+    # 例如：
+    # 2026-05-28
+    # ========================================================
+
     match = re.match(
         r"^(\d{4})-(\d{1,2})-(\d{1,2})$",
         text
@@ -110,11 +249,35 @@ def parse_date(value):
 
     if match:
 
-        return (
-            int(match.group(1)),
-            int(match.group(2)),
-            int(match.group(3)),
+        year = int(
+            match.group(1)
         )
+
+        month = int(
+            match.group(2)
+        )
+
+        day = int(
+            match.group(3)
+        )
+
+        try:
+
+            datetime(
+                year,
+                month,
+                day
+            )
+
+            return (
+                year,
+                month,
+                day
+            )
+
+        except ValueError:
+
+            return None
 
     return None
 
