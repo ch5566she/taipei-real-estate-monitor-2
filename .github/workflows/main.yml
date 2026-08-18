@@ -96,7 +96,9 @@ jobs:
           else
 
             git commit -m "自動更新每日房市資料與房市報告"
-
+            
+            git pull --rebase origin main
+            
             git push
 
           fi
