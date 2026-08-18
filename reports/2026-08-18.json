@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-18 14:41:23",
+  "generated_at": "2026-08-18 15:45:35",
   "districts": {
     "士林區": {
       "stats": {
@@ -18,11 +18,96 @@
         "iqr_upper": 155.18375000000003
       },
       "trend": {
-        "direction": "資料不足",
-        "change": null,
+        "direction": "下降",
+        "change": -39.831352555878176,
         "confidence": "低"
       },
-      "months": [],
+      "months": [
+        {
+          "month": "2021-01",
+          "count": 6,
+          "average": 98.72666666666666,
+          "median": 98.625,
+          "change": null
+        },
+        {
+          "month": "2021-04",
+          "count": 1,
+          "average": 85.77,
+          "median": 85.77,
+          "change": -13.123776082112226
+        },
+        {
+          "month": "2025-02",
+          "count": 1,
+          "average": 99.85,
+          "median": 99.85,
+          "change": 16.415996269091757
+        },
+        {
+          "month": "2025-11",
+          "count": 2,
+          "average": 65.86,
+          "median": 65.86,
+          "change": -34.04106159238858
+        },
+        {
+          "month": "2025-12",
+          "count": 3,
+          "average": 66.34333333333333,
+          "median": 73.87,
+          "change": 0.7338799473630949
+        },
+        {
+          "month": "2026-01",
+          "count": 1,
+          "average": 86.44,
+          "median": 86.44,
+          "change": 30.2919157915892
+        },
+        {
+          "month": "2026-02",
+          "count": 1,
+          "average": 65.52,
+          "median": 65.52,
+          "change": -24.20175844516428
+        },
+        {
+          "month": "2026-03",
+          "count": 1,
+          "average": 90.22,
+          "median": 90.22,
+          "change": 37.6984126984127
+        },
+        {
+          "month": "2026-04",
+          "count": 4,
+          "average": 61.84,
+          "median": 58.480000000000004,
+          "change": -31.45643981378851
+        },
+        {
+          "month": "2026-05",
+          "count": 16,
+          "average": 73.10875,
+          "median": 67.57,
+          "change": 18.222428848641652
+        },
+        {
+          "month": "2026-06",
+          "count": 4,
+          "average": 74.57,
+          "median": 78.86,
+          "change": 1.9987347615709372
+        },
+        {
+          "month": "2026-07",
+          "count": 4,
+          "average": 59.4025,
+          "median": 60.045,
+          "change": -20.33994904116936
+        }
+      ],
       "routes": [
         {
           "route": "中山北路",
@@ -85,11 +170,68 @@
         "iqr_upper": 153.64249999999998
       },
       "trend": {
-        "direction": "資料不足",
-        "change": null,
-        "confidence": "低"
+        "direction": "下降",
+        "change": -35.565012493842104,
+        "confidence": "中"
       },
-      "months": [],
+      "months": [
+        {
+          "month": "2024-12",
+          "count": 2,
+          "average": 120.345,
+          "median": 120.345,
+          "change": null
+        },
+        {
+          "month": "2025-05",
+          "count": 1,
+          "average": 121.41,
+          "median": 121.41,
+          "change": 0.8849557522123874
+        },
+        {
+          "month": "2026-01",
+          "count": 1,
+          "average": 61.84,
+          "median": 61.84,
+          "change": -49.0651511407627
+        },
+        {
+          "month": "2026-03",
+          "count": 1,
+          "average": 92.63,
+          "median": 92.63,
+          "change": 49.78978007761965
+        },
+        {
+          "month": "2026-04",
+          "count": 2,
+          "average": 80.94,
+          "median": 80.94,
+          "change": -12.620101479002482
+        },
+        {
+          "month": "2026-05",
+          "count": 3,
+          "average": 48.83,
+          "median": 39.68,
+          "change": -39.671361502347416
+        },
+        {
+          "month": "2026-06",
+          "count": 14,
+          "average": 66.24857142857142,
+          "median": 60.995,
+          "change": 35.67186448611802
+        },
+        {
+          "month": "2026-07",
+          "count": 7,
+          "average": 77.54428571428572,
+          "median": 77.21,
+          "change": 17.050502436710243
+        }
+      ],
       "routes": [
         {
           "route": "石牌路",
