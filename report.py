@@ -1030,7 +1030,76 @@ def money(value):
 
 
 def create_html(report):
+    # ============================================================
+    # 第12-1階段：士林／北投市場總覽
+    # ============================================================
 
+    summary_rows = ""
+
+    for district, data in report["districts"].items():
+
+        stats = data["stats"]
+        trend = data["trend"]
+
+        change = trend.get("change")
+
+        if change is None:
+            change_text = "—"
+        else:
+            change_text = f"{change:+.2f}%"
+
+        summary_rows += f"""
+            <tr>
+                <td>
+                    <strong>{html_escape(district)}</strong>
+                </td>
+
+                <td>
+                    {stats["count"]:,} 筆
+                </td>
+
+                <td>
+                    {money(stats["average_price"])}
+                    萬／坪
+                </td>
+
+                <td>
+                    {money(stats["median_price"])}
+                    萬／坪
+                </td>
+
+                <td>
+                    {html_escape(trend["direction"])}
+                </td>
+
+                <td>
+                    {change_text}
+                </td>
+            </tr>
+        """
+
+    summary = f"""
+        <section class="summary">
+
+            <h2>🏠 士林區／北投區市場總覽</h2>
+
+            <table>
+
+                <tr>
+                    <th>行政區</th>
+                    <th>交易量</th>
+                    <th>平均單價</th>
+                    <th>中位數</th>
+                    <th>市場方向</th>
+                    <th>近期變化</th>
+                </tr>
+
+                {summary_rows}
+
+            </table>
+
+        </section>
+    """
     generated_at = report[
         "generated_at"
     ]
@@ -1423,11 +1492,13 @@ footer {{
 
 </header>
 
-<div class="container">
+    <div class="container">
 
-{cards}
+        {summary}
 
-</div>
+        {cards}
+
+    </div>
 
 <footer>
 
