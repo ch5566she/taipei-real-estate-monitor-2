@@ -79,7 +79,7 @@ def analyze_district(records, district):
 
         # 單價欄位
         unit_price = to_float(
-            row.get("UPRICE")
+            row.get("pu_area")
         )
 
         # 排除沒有單價或單價為 0 的資料
