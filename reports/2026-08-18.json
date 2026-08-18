@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-18 18:06:23",
+  "generated_at": "2026-08-18 18:50:55",
   "districts": {
     "士林區": {
       "stats": {
@@ -183,6 +183,11 @@
           "median": 50.4,
           "heat": 100.8
         }
+      ],
+      "latest_transaction_date": [
+        2026,
+        7,
+        15
       ]
     },
     "北投區": {
@@ -318,6 +323,11 @@
           "median": 38.39,
           "heat": 76.78
         }
+      ],
+      "latest_transaction_date": [
+        2026,
+        7,
+        28
       ]
     }
   }
