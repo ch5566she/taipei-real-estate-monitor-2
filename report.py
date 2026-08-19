@@ -28,6 +28,18 @@ from statistics import mean, median
 INPUT_FILE = "data/taipei_transactions.csv"
 REPORT_DIR = "reports"
 
+# 第17階段：目前在售物件資料。
+# 系統會依序尋找存在的 CSV；沒有資料時不捏造，報告會明確標示尚未接入。
+LISTING_FILES = [
+    "data/current_listings.csv",
+    "data/on_sale.csv",
+    "data/onsale.csv",
+    "data/for_sale.csv",
+    "data/591_listings.csv",
+    "data/market_listings.csv",
+    "data/listings.csv",
+]
+
 TARGET_DISTRICTS = [
     "士林區",
     "北投區",
@@ -1361,6 +1373,364 @@ def build_stage16_property_board(report):
 
 
 # ============================================================
+# 第17階段：目前在售物件 × 成交行情 × 路段熱度 × 開發分數
+# ============================================================
+
+def _first_value(row, names):
+    """從多種可能欄位名稱取第一個非空值。"""
+    row = row or {}
+    for name in names:
+        value = row.get(name)
+        if value is not None and str(value).strip() != "":
+            return value
+    return None
+
+
+def _listing_is_active(row):
+    """若來源提供狀態欄位，盡量排除已售／下架；沒有狀態則視為可用資料。"""
+    status = _first_value(row, [
+        "status", "listing_status", "sale_status", "物件狀態", "狀態"
+    ])
+    if status is None:
+        return True
+    text = str(status).strip().lower()
+    blocked = ["已售", "售出", "下架", "撤件", "出租", "租賃", "sold", "closed", "off"]
+    return not any(x in text for x in blocked)
+
+
+def load_listings():
+    """讀取可用的在售 CSV；找不到檔案時回傳空集合，不製造假案源。"""
+    selected = None
+    for path in LISTING_FILES:
+        if os.path.exists(path):
+            selected = path
+            break
+
+    if not selected:
+        print("第17階段：尚未找到在售物件 CSV，將以『未接入』狀態產生報告。")
+        return [], None
+
+    listings = []
+    try:
+        with open(selected, "r", encoding="utf-8-sig", newline="") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                district = str(_first_value(row, [
+                    "district", "行政區", "區域", "area_district"
+                ]) or "").strip()
+                if district not in TARGET_DISTRICTS:
+                    continue
+
+                if not _listing_is_active(row):
+                    continue
+
+                case_type = _first_value(row, ["case_t", "transaction_type", "type", "物件類型", "交易類型"])
+                if case_type and any(x in str(case_type) for x in ["租", "出租", "租賃"]):
+                    continue
+
+                location = str(_first_value(row, [
+                    "location", "address", "addr", "address_full", "地址", "地點", "路段"
+                ]) or "").strip()
+                route = extract_route(location)
+                if route in ("其他", "未知路段"):
+                    route_candidate = str(_first_value(row, ["route", "road", "street", "路段", "道路"]) or "").strip()
+                    if route_candidate:
+                        route = route_candidate
+
+                total_price = to_float(_first_value(row, [
+                    "asking_price", "total_price", "price", "tprice", "總價", "開價", "售價"
+                ]))
+                area = to_float(_first_value(row, [
+                    "area", "building_area", "farea", "坪數", "建物坪數", "權狀坪數", "主建物坪數"
+                ]))
+                unit_price = to_float(_first_value(row, [
+                    "asking_unit_price", "unit_price", "uprice", "單價", "每坪單價", "開價單價"
+                ]))
+
+                if unit_price is None and total_price is not None and area and area > 0:
+                    unit_price = total_price / area
+
+                if total_price is None and unit_price is not None and area and area > 0:
+                    total_price = unit_price * area
+
+                if unit_price is None or unit_price <= 0 or area is None or area <= 0:
+                    continue
+
+                listing_date = _first_value(row, [
+                    "listing_date", "publish_date", "date", "created_at", "上架日期", "更新日期"
+                ])
+                title = str(_first_value(row, [
+                    "title", "name", "property_name", "build_name", "物件名稱", "標題"
+                ]) or "").strip()
+                url = str(_first_value(row, [
+                    "url", "link", "property_url", "物件網址", "網址"
+                ]) or "").strip()
+                build_type = str(_first_value(row, [
+                    "buitype", "building_type", "type_name", "建物型態", "物件型態"
+                ]) or "").strip()
+                rooms = str(_first_value(row, [
+                    "rooms", "room", "bedrooms", "格局", "房數"
+                ]) or "").strip()
+                age = to_float(_first_value(row, [
+                    "age", "building_age", "屋齡"
+                ]))
+
+                listings.append({
+                    "row": row,
+                    "district": district,
+                    "route": route,
+                    "location": location,
+                    "title": title,
+                    "url": url,
+                    "unit_price": unit_price,
+                    "total_price": total_price,
+                    "area": area,
+                    "listing_date": str(listing_date or "").strip(),
+                    "build_type": build_type,
+                    "rooms": rooms,
+                    "age": age,
+                })
+    except (OSError, csv.Error, UnicodeDecodeError) as exc:
+        print(f"第17階段：讀取在售物件資料失敗：{exc}")
+        return [], selected
+
+    print(f"第17階段：讀取在售物件 {len(listings):,} 筆，來源：{selected}")
+    return listings, selected
+
+
+def build_stage17_listing_radar(listings, records, report, source_path=None):
+    """目前在售物件與近期成交／路段熱度交叉比對。"""
+    if not listings:
+        return {
+            "source": source_path,
+            "count": 0,
+            "connected": False,
+            "top10": [],
+            "note": "尚未接入目前在售物件資料；目前報告不判定任何個別在售物件。",
+        }
+
+    route_prices = {}
+    route_heat = {}
+    route_count = {}
+    for item in records:
+        key = (item.get("district"), item.get("route") or "未知路段")
+        route_prices.setdefault(key, []).append(float(item.get("unit_price") or 0))
+        route_count[key] = route_count.get(key, 0) + 1
+
+    # 使用目前報告已算好的路段熱度／開發分數；若沒有則退回成交筆數。
+    for district, data in report.get("districts", {}).items():
+        for route in data.get("route_monitor", []) or []:
+            key = (district, route.get("route") or "未知路段")
+            route_heat[key] = float(route.get("heat") or 0)
+
+    district_medians = {
+        district: to_float(data.get("stats", {}).get("median_price"))
+        for district, data in report.get("districts", {}).items()
+    }
+
+    max_heat = max(route_heat.values()) if route_heat else 0
+    candidates = []
+    for item in listings:
+        key = (item.get("district"), item.get("route") or "未知路段")
+        prices = [p for p in route_prices.get(key, []) if p > 0]
+        route_median = median(prices) if prices else None
+        district_median = district_medians.get(item.get("district"))
+        ask = float(item.get("unit_price") or 0)
+
+        route_gap = None if not route_median else (ask - route_median) / route_median * 100
+        district_gap = None if not district_median else (ask - district_median) / district_median * 100
+
+        # 40分價格機會：越接近或低於成交中位數越高；明顯高於市場則降分。
+        if route_gap is None:
+            price_score = 12
+        elif route_gap <= -20:
+            price_score = 40
+        elif route_gap <= -10:
+            price_score = 34
+        elif route_gap <= -5:
+            price_score = 28
+        elif route_gap <= 5:
+            price_score = 22
+        elif route_gap <= 10:
+            price_score = 15
+        elif route_gap <= 20:
+            price_score = 8
+        else:
+            price_score = 3
+
+        # 25分路段熱度。
+        heat = route_heat.get(key, 0)
+        if max_heat > 0:
+            heat_score = min(25, heat / max_heat * 25)
+        else:
+            heat_score = min(25, route_count.get(key, 0) * 3)
+
+        # 20分資料完整度／可操作性。
+        completeness = 0
+        if item.get("location") or item.get("route") not in ("其他", "未知路段"):
+            completeness += 5
+        if item.get("area"):
+            completeness += 5
+        if item.get("total_price"):
+            completeness += 4
+        if item.get("title"):
+            completeness += 3
+        if item.get("url"):
+            completeness += 3
+
+        # 15分成交樣本量與同路段可比性。
+        sample = route_count.get(key, 0)
+        sample_score = min(15, sample * 2.5)
+
+        score = round(min(100, price_score + heat_score + completeness + sample_score), 1)
+        priority = "A｜優先研究" if score >= 75 else "B｜本週追蹤" if score >= 60 else "C｜持續觀察"
+
+        reasons = []
+        actions = []
+        if route_gap is not None and route_gap <= -10:
+            reasons.append(f"開價低於同路段成交中位價{abs(route_gap):.1f}%")
+            actions.append("優先檢查同類型成交條件與產品差異")
+        elif route_gap is not None and route_gap >= 15:
+            reasons.append(f"開價高於同路段成交中位價{route_gap:.1f}%")
+            actions.append("列為高開價競品，觀察議價與銷售週期")
+        if route_count.get(key, 0) >= 4:
+            reasons.append(f"同路段近期成交樣本{route_count[key]}筆")
+            actions.append("建立同路段價格帶與競品清單")
+        if heat >= max_heat * 0.5 and max_heat > 0:
+            reasons.append("所在路段屬高熱度路段")
+            actions.append("列入每日重點追蹤")
+        if district_gap is not None and abs(district_gap) >= 15:
+            reasons.append(f"與行政區中位價偏離{district_gap:+.1f}%")
+            actions.append("再用屋齡、樓層、格局、車位修正比較")
+        if not reasons:
+            reasons.append("已有在售資料且可與成交行情交叉比對")
+        if not actions:
+            actions.append("持續追蹤價格與成交變化")
+
+        candidates.append({
+            "district": item.get("district"),
+            "route": item.get("route"),
+            "location": item.get("location"),
+            "title": item.get("title"),
+            "url": item.get("url"),
+            "unit_price": ask,
+            "total_price": item.get("total_price"),
+            "area": item.get("area"),
+            "build_type": item.get("build_type"),
+            "rooms": item.get("rooms"),
+            "age": item.get("age"),
+            "route_median": route_median,
+            "district_median": district_median,
+            "route_gap": route_gap,
+            "district_gap": district_gap,
+            "route_heat": heat,
+            "route_transaction_count": sample,
+            "score": score,
+            "priority": priority,
+            "reasons": reasons[:4],
+            "actions": actions[:3],
+        })
+
+    candidates.sort(key=lambda x: (x["score"], -(abs(x["route_gap"]) if x.get("route_gap") is not None else 999)), reverse=True)
+    for idx, item in enumerate(candidates[:10], 1):
+        item["rank"] = idx
+
+    return {
+        "source": source_path,
+        "count": len(listings),
+        "connected": True,
+        "top10": candidates[:10],
+        "note": "在售物件多數屬市場競品資料；除非來源明確提供屋主資訊，系統不判定屋主身份。價格比較亦非正式估價。",
+    }
+
+
+def build_stage17_listing_board(report):
+    data = report.get("listing_radar") or {}
+    top10 = data.get("top10", []) or []
+    count = int(data.get("count") or 0)
+    source = data.get("source") or "尚未找到在售 CSV"
+    if not data.get("connected"):
+        return f"""
+        <section class="stage17">
+            <h2>🔥 第17階段｜今日房仲在售物件開發雷達</h2>
+            <div class="stage17-focus">
+                <strong>目前尚未接入在售物件資料。</strong><br>
+                系統已保留完整介面；下一次只要把在售資料放入指定 CSV，便會自動產生「在售開價 × 成交中位價 × 路段熱度 × 開發分數 Top 10」。
+            </div>
+            <div class="stage17-note">
+                預設資料位置：data/current_listings.csv、data/on_sale.csv、data/591_listings.csv 或 data/listings.csv。<br>
+                ⚠️ 沒有在售資料時，本階段不捏造任何物件、不假設目前在售，也不判定屋主身份。
+            </div>
+        </section>
+        """
+
+    rows = []
+    for x in top10:
+        route_median = "—" if x.get("route_median") is None else f"{x['route_median']:.2f}"
+        gap = "—" if x.get("route_gap") is None else f"{x['route_gap']:+.1f}%"
+        total = "—" if x.get("total_price") is None else f"{x['total_price']:,.0f}"
+        area = "—" if x.get("area") is None else f"{x['area']:.1f}"
+        reason = "；".join(x.get("reasons", [])[:2])
+        title = x.get("title") or x.get("location") or x.get("route") or "未命名物件"
+        rows.append(f"""
+        <tr>
+            <td><strong>#{x['rank']}</strong></td>
+            <td>{html_escape(x.get('district'))}</td>
+            <td>{html_escape(x.get('route'))}<br><small>{html_escape(title)}</small></td>
+            <td>{total}</td>
+            <td>{area}</td>
+            <td>{x['unit_price']:.2f}</td>
+            <td>{route_median}</td>
+            <td>{gap}</td>
+            <td>{x['route_transaction_count']}筆<br>{x['route_heat']:.2f}</td>
+            <td><strong>{x['score']:.1f}</strong><br><small>{html_escape(x['priority'])}</small></td>
+            <td>{html_escape(reason)}</td>
+        </tr>
+        """)
+
+    focus = top10[0]
+    focus_reason = "；".join(focus.get("reasons", [])[:3])
+    focus_action = "；".join(focus.get("actions", [])[:3])
+    url_html = ""
+    if focus.get("url"):
+        url_html = f'<br><a href="{html_escape(focus["url"])}" target="_blank" rel="noopener">查看物件來源</a>'
+
+    return f"""
+    <section class="stage17">
+        <h2>🔥 第17階段｜今日房仲在售物件開發雷達 Top 10</h2>
+        <div class="stage17-summary-grid">
+            <div class="stage17-summary-card"><div class="stage17-summary-title">🏠 在售資料</div><strong>{count:,} 筆</strong><small>來源：{html_escape(source)}</small></div>
+            <div class="stage17-summary-card"><div class="stage17-summary-title">🎯 第一優先</div><strong>{focus['score']:.1f}</strong><small>{html_escape(focus['district'])}｜{html_escape(focus['route'])}</small></div>
+            <div class="stage17-summary-card"><div class="stage17-summary-title">📊 比價基準</div><strong>{'可比' if focus.get('route_median') is not None else '不足'}</strong><small>同路段成交中位價</small></div>
+        </div>
+        <div class="stage17-focus">
+            <strong>🎯 今日第一優先物件：</strong>
+            {html_escape(focus.get('district'))} × {html_escape(focus.get('route'))} × {html_escape(focus.get('title') or focus.get('location') or '未命名物件')}<br>
+            <strong>開價：</strong>{focus['unit_price']:.2f} 萬／坪；
+            <strong>同路段成交中位價：</strong>{'—' if focus.get('route_median') is None else f"{focus['route_median']:.2f} 萬／坪"}；
+            <strong>價格偏離：</strong>{'—' if focus.get('route_gap') is None else f"{focus['route_gap']:+.1f}%"}；
+            <strong>開發分數：</strong>{focus['score']:.1f}<br>
+            <strong>為什麼：</strong>{html_escape(focus_reason)}<br>
+            <strong>建議：</strong>{html_escape(focus_action)}{url_html}
+        </div>
+        <div class="table-scroll">
+        <table class="stage17-table">
+            <tr>
+                <th>排名</th><th>行政區</th><th>路段／物件</th><th>總價</th><th>坪數</th>
+                <th>目前開價</th><th>成交中位</th><th>價格偏離</th><th>路段熱度</th><th>開發分數</th><th>開發訊號</th>
+            </tr>
+            {''.join(rows)}
+        </table>
+        </div>
+        <div class="stage17-note">
+            📌 本階段是「目前在售物件的市場機會／競品研究排序」，不是單一物件正式估價，也不是屋主身份判定。<br>
+            若資料來源是仲介公開物件，系統會將其視為市場競品；只有來源明確標示屋主資訊時，才可另行處理聯絡資訊。
+        </div>
+    </section>
+    """
+
+
+# ============================================================
 # 建立 JSON 資料
 # ============================================================
 
@@ -1449,6 +1819,12 @@ def build_report_data(records):
 
     # 第16階段：個別成交個案開發雷達
     report["property_radar"] = build_stage16_property_radar(records, report)
+
+    # 第17階段：接入目前在售物件；沒有資料時保持空結果，不捏造。
+    listings, listing_source = load_listings()
+    report["listing_radar"] = build_stage17_listing_radar(
+        listings, records, report, listing_source
+    )
 
     return report
 
@@ -3096,6 +3472,7 @@ def create_html(report):
     stage14_opportunity = build_stage14_opportunity_board(report)
     stage15_development = build_stage15_development_board(report)
     stage16_property = build_stage16_property_board(report)
+    stage17_listing = build_stage17_listing_board(report)
 
     generated_at = report[
         "generated_at"
@@ -4097,6 +4474,18 @@ footer {{
 .stage16 th, .stage16 td {{ padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: left; vertical-align: top; }}
 .stage16 th {{ background: #eef2f7; }}
 .stage16-note {{ margin-top: 16px; padding: 14px; background: #fff8ed; border-left: 4px solid #f59e0b; border-radius: 8px; line-height: 1.8; }}
+.stage17 {{ margin-top: 28px; padding: 24px; background: #fff; border-radius: 18px; box-shadow: 0 4px 18px rgba(20,40,80,.08); }}
+.stage17-focus {{ margin: 16px 0; padding: 18px; background: #effaf3; border-left: 5px solid #16a34a; border-radius: 10px; line-height: 1.9; }}
+.stage17-summary-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 16px 0; }}
+.stage17-summary-card {{ padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }}
+.stage17-summary-title {{ color: #2563eb; font-weight: 700; margin-bottom: 8px; }}
+.stage17-summary-card strong {{ display:block; font-size: 25px; color:#0f172a; margin-bottom:4px; }}
+.stage17-summary-card small {{ color:#64748b; }}
+.stage17-table {{ width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }}
+.stage17-table th, .stage17-table td {{ padding: 9px 7px; border-bottom: 1px solid #e5e7eb; text-align: left; vertical-align: top; }}
+.stage17-table th {{ background:#eef2f7; }}
+.stage17-note {{ margin-top:16px; padding:14px; background:#fff8ed; border-left:4px solid #f59e0b; border-radius:8px; line-height:1.8; }}
+@media(max-width:900px) {{ .stage17-summary-grid {{ grid-template-columns:1fr; }} }}
 
 </style>
 
@@ -4138,6 +4527,8 @@ footer {{
 
         {stage16_property}
 
+        {stage17_listing}
+
         {stage12_alerts}
 
         {cards}
@@ -4148,7 +4539,7 @@ footer {{
 
 台北市士林區／北投區房市監控系統<br>
 
-第十六階段：房市監控＋市場機會雷達＋個別成交個案開發雷達
+第十七階段：房市監控＋成交個案雷達＋在售物件開發雷達
 
 </footer>
 
@@ -4225,7 +4616,7 @@ def save_reports(report):
 
     print()
     print("=" * 70)
-    print("第十五階段房市報告完成")
+    print("第十七階段房市報告完成")
     print("=" * 70)
 
     print()
