@@ -122,6 +122,46 @@ jobs:
           fi
 
       # ==============================
+      # 第29階段
+      # 房仲實戰價格決策引擎
+      # ==============================
+
+      - name: 執行房仲實戰價格決策引擎
+        shell: bash
+        run: |
+
+          echo "=========================================="
+          echo "第29階段：房仲實戰價格決策引擎"
+          echo "=========================================="
+
+          if [ -f "data/current_listings.csv" ]; then
+
+            echo "找到 data/current_listings.csv"
+
+            if [ -f "pricing_engine.py" ]; then
+
+              echo "找到 pricing_engine.py"
+              echo "開始執行價格決策分析"
+
+              python pricing_engine.py
+
+            else
+
+              echo "錯誤：找不到 pricing_engine.py"
+              exit 1
+
+            fi
+
+          else
+
+            echo "沒有 data/current_listings.csv"
+            echo "略過第29階段價格決策分析"
+
+            rm -f data/pricing_decisions.csv
+
+          fi
+
+      # ==============================
       # 產生每日房市報告
       # ==============================
 
@@ -167,15 +207,31 @@ jobs:
             git add -u -- data/listing_comparison.json 2>/dev/null || true
           fi
 
+          # ==============================
+          # 第29階段價格決策資料
+          # ==============================
+
+          if [ -f "data/pricing_decisions.csv" ]; then
+            echo "找到價格決策資料，加入 Git"
+            git add data/pricing_decisions.csv
+          else
+            echo "沒有新的 pricing_decisions.csv"
+            git add -u -- data/pricing_decisions.csv 2>/dev/null || true
+          fi
+
+          # ==============================
+          # 判斷是否需要 Commit
+          # ==============================
+
           if git diff --cached --quiet; then
 
             echo "沒有新的資料或報告需要 Commit"
 
           else
 
-            echo "準備提交每日房市資料與房市報告"
+            echo "準備提交每日房市資料、價格決策與房市報告"
 
-            git commit -m "自動更新每日房市資料與房市報告"
+            git commit -m "自動更新每日房市資料與房價決策"
 
             git pull --rebase origin main
 
