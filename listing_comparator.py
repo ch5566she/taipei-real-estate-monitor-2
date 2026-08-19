@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 台北市士林區／北投區
-第21階段：在售物件 × 實價成交比價引擎（同地址＋車位校正）
+第24階段：在售物件 × 實價成交比價引擎（嚴格同類案例＋樣本門檻＋車位校正）
 
 功能：
 1. 讀取 data/current_listings.csv
@@ -752,23 +752,26 @@ def area_difference_ratio(listing_area, transaction_area):
 
 def transaction_score(listing, transaction):
     """
-    第21階段三層比價：
+    嚴格三層比價規則：
+
     A. 同門牌＋同樓層：最高優先
     B. 同門牌：次高優先
     C. 同行政區＋同路段＋相近坪數：一般比較案例
 
-    額外考量：
-    - 坪數越接近分數越高
-    - 樓層接近提高分數
-    - 建物類型相同提高分數
+    重要修正：
+    - 不同街道的成交，不得再進入一般比較樣本。
+    - 坪數超過 ±25% 直接排除。
+    - 同地址／同樓層只代表「優先級高」，不代表可以忽略樣本數門檻。
     """
     if listing["district"] != transaction["district"]:
         return -1
 
-    score = 0
-
-    listing_address = listing.get("address_key") or address_key(listing["location"])
-    transaction_address = transaction.get("address_key") or address_key(transaction["location"])
+    listing_address = listing.get("address_key") or address_key(
+        listing["location"]
+    )
+    transaction_address = transaction.get("address_key") or address_key(
+        transaction["location"]
+    )
 
     listing_unit = listing.get("unit_key") or exact_unit_key(
         listing["location"], listing.get("floor")
@@ -777,52 +780,74 @@ def transaction_score(listing, transaction):
         transaction["location"], transaction.get("floor")
     )
 
-    # A. 同門牌＋同樓層
-    if (
+    same_unit = bool(
         listing_unit
         and transaction_unit
         and listing_unit == transaction_unit
         and listing_address == transaction_address
-    ):
-        score += 180
+    )
 
-    # B. 同門牌
-    elif listing_address and transaction_address and listing_address == transaction_address:
-        score += 120
+    same_address = bool(
+        listing_address
+        and transaction_address
+        and listing_address == transaction_address
+    )
 
-    # 原有同路段邏輯
-    if (
-        listing["street"]
-        and transaction["street"]
+    same_street = bool(
+        listing.get("street")
+        and transaction.get("street")
         and listing["street"] == transaction["street"]
-    ):
-        score += 40
+    )
+
+    # 核心防呆：
+    # 既非同門牌，也非同路段，直接排除。
+    # 這會避免「德行西路」拿「葫蘆街」成交來比較。
+    if not same_address and not same_street:
+        return -1
 
     area_ratio = area_difference_ratio(
         listing["building_area"],
         transaction["area"]
     )
 
-    if area_ratio <= 0.10:
-        score += 25
-    elif area_ratio <= 0.20:
-        score += 15
-    elif area_ratio <= 0.25:
-        score += 5
-    else:
+    if area_ratio > 0.25:
         return -1
 
-    # 在售資料若有建物類型，可比較；目前通常沒有，因此不強制。
+    score = 0
+
+    # 地址層級
+    if same_unit:
+        score += 220
+    elif same_address:
+        score += 150
+    else:
+        score += 40  # 同路段 fallback
+
+    # 坪數接近程度
+    if area_ratio <= 0.10:
+        score += 30
+    elif area_ratio <= 0.20:
+        score += 18
+    else:
+        score += 5
+
+    # 建物類型
     listing_type = normalize_building_type(
         listing.get("building_type")
     )
     transaction_type = transaction.get("building_type", "未知")
-    if listing_type != "未知" and transaction_type != "未知" and listing_type == transaction_type:
-        score += 20
 
-    # 樓層接近加分
+    if (
+        listing_type != "未知"
+        and transaction_type != "未知"
+        and listing_type == transaction_type
+    ):
+        score += 25
+
+    # 樓層接近
     lf = extract_floor_key(listing.get("floor"))
     tf = extract_floor_key(transaction.get("floor"))
+
     if lf and tf:
         try:
             diff = abs(int(lf) - int(tf))
@@ -838,51 +863,89 @@ def transaction_score(listing, transaction):
     return score
 
 
-def find_comparables(
-    listing,
-    transactions,
-    max_results=12
-):
+def find_comparables(listing, transactions, max_results=12):
+    """
+    找尋可比成交。
+
+    優先級：
+      Tier 1：同門牌＋同樓層
+      Tier 2：同門牌
+      Tier 3：同路段＋相近坪數
+
+    不同路段一律排除。
+    若存在同門牌案例，優先使用同門牌案例；
+    沒有同門牌時才使用同路段案例。
+    """
     candidates = []
 
     for transaction in transactions:
-
         if transaction["district"] != listing["district"]:
             continue
 
-        score = transaction_score(
-            listing,
-            transaction
-        )
-
+        score = transaction_score(listing, transaction)
         if score < 0:
             continue
 
-        candidates.append(
-            (
-                score,
-                transaction
-            )
+        listing_address = listing.get("address_key") or address_key(
+            listing["location"]
+        )
+        transaction_address = transaction.get("address_key") or address_key(
+            transaction["location"]
         )
 
-    # 分數高的優先
+        listing_unit = listing.get("unit_key") or exact_unit_key(
+            listing["location"], listing.get("floor")
+        )
+        transaction_unit = transaction.get("unit_key") or exact_unit_key(
+            transaction["location"], transaction.get("floor")
+        )
+
+        same_unit = bool(
+            listing_unit
+            and transaction_unit
+            and listing_unit == transaction_unit
+            and listing_address == transaction_address
+        )
+
+        same_address = bool(
+            listing_address
+            and transaction_address
+            and listing_address == transaction_address
+        )
+
+        tier = 1 if same_unit else 2 if same_address else 3
+
+        candidates.append((tier, score, transaction))
+
+    if not candidates:
+        return []
+
+    # 如果有同門牌成交，只以同門牌案例作主要比價；
+    # 沒有才退到同路段。
+    best_tier = min(item[0] for item in candidates)
+    candidates = [
+        item for item in candidates
+        if item[0] == best_tier
+    ]
+
     candidates.sort(
         key=lambda x: (
-            -x[0],
+            -x[1],
             area_difference_ratio(
                 listing["building_area"],
-                x[1]["area"]
-            )
+                x[2]["area"]
+            ),
+            x[2].get("date", ""),
         )
     )
 
     return [
         {
             "score": score,
-            "transaction": transaction
+            "tier": tier,
+            "transaction": transaction,
         }
-        for score, transaction
-        in candidates[:max_results]
+        for tier, score, transaction in candidates[:max_results]
     ]
 
 
@@ -890,48 +953,50 @@ def find_comparables(
 # 市場判斷
 # ============================================================
 
-def classify_market(premium):
+def classify_market(premium, sample_count=0):
     """
-    premium：
-    目前開價相對成交中位數的差距。
+    正式市場判定必須同時滿足：
+    1. 有成交資料
+    2. 至少3筆可比成交
 
-    例如：
-    +0.10 = 高於市場 10%
-    -0.05 = 低於市場 5%
+    樣本不足時，即使單筆成交與開價差距非常大，
+    也不得產生「高於市場」等正式判定。
     """
-
-    if premium is None:
+    if premium is None or sample_count < 3:
         return {
-            "level": "無法判斷",
+            "level": "樣本不足",
             "emoji": "⚪",
-            "description": "成交樣本不足"
+            "description": (
+                f"目前僅有 {sample_count} 筆有效可比成交，"
+                "不足以進行正式市場溢價／折價判定"
+            ),
         }
 
     if premium <= -0.08:
         return {
             "level": "低於市場",
             "emoji": "🟢",
-            "description": "目前開價低於附近成交行情，具備價格吸引力"
+            "description": "目前開價低於附近成交行情，具備價格吸引力",
         }
 
     if premium <= 0.05:
         return {
             "level": "接近市場",
             "emoji": "🟡",
-            "description": "目前開價大致落在附近成交行情合理範圍"
+            "description": "目前開價大致落在附近成交行情合理範圍",
         }
 
     if premium <= 0.12:
         return {
             "level": "合理偏高",
             "emoji": "🟡",
-            "description": "目前開價高於附近成交行情，仍有議價空間"
+            "description": "目前開價高於附近成交行情，仍有議價空間",
         }
 
     return {
         "level": "高於市場",
         "emoji": "🔴",
-        "description": "目前開價明顯高於附近成交行情"
+        "description": "目前開價明顯高於附近成交行情",
     }
 
 
@@ -942,55 +1007,43 @@ def calculate_recommendations(
     q3,
     sample_count
 ):
-    if market_median is None:
+    """
+    嚴格樣本門檻：
+    - 0～2筆：不提供精確買方／賣方價格
+    - 3～4筆：可提供初步參考，但明確標示樣本有限
+    - 5筆以上：可作主要議價參考之一
+    """
+    if market_median is None or sample_count < 3:
         return {
             "seller_price_low": None,
             "seller_price_high": None,
             "buyer_price_low": None,
             "buyer_price_high": None,
-            "note": "成交樣本不足，暫不提供精確議價價格"
+            "note": (
+                "成交樣本不足3筆，暫不提供精確議價價格；"
+                "請優先補充同門牌、同社區或同路段成交案例。"
+            ),
         }
 
-    # 賣方：
-    # 以 Q1～Q3 作為主要市場價格帶
     seller_low = q1
     seller_high = q3
 
-    # 買方：
-    # 以市場中位數附近向下 3%～8%
     buyer_low = market_median * 0.92
     buyer_high = market_median * 0.97
 
-    # 樣本太少時降低語氣
-    if sample_count < 3:
-        note = "成交樣本偏少，建議搭配現場屋況、樓層與車位條件判斷"
-
-    elif sample_count < 5:
-        note = "成交樣本有限，可作初步議價參考"
-
+    if sample_count < 5:
+        note = "成交樣本3～4筆，僅作初步議價參考，仍應搭配屋況、樓層與車位條件。"
     else:
-        note = "成交樣本達基本比較門檻，可作為主要議價參考之一"
+        note = "成交樣本達5筆以上，可作為主要議價參考之一。"
 
     return {
-        "seller_price_low": round_number(
-            seller_low
-        ),
-        "seller_price_high": round_number(
-            seller_high
-        ),
-        "buyer_price_low": round_number(
-            buyer_low
-        ),
-        "buyer_price_high": round_number(
-            buyer_high
-        ),
-        "note": note
+        "seller_price_low": round_number(seller_low),
+        "seller_price_high": round_number(seller_high),
+        "buyer_price_low": round_number(buyer_low),
+        "buyer_price_high": round_number(buyer_high),
+        "note": note,
     }
 
-
-# ============================================================
-# 單一物件分析
-# ============================================================
 
 def analyze_listing(
     listing,
@@ -1007,6 +1060,8 @@ def analyze_listing(
         if transaction_net_unit_price(item["transaction"]) is not None
     ]
 
+    sample_count = len(prices)
+
     if not prices:
         return {
             "listing": listing,
@@ -1021,7 +1076,7 @@ def analyze_listing(
                 ),
                 "premium_ratio": None,
                 "premium_percent": None,
-                "market": classify_market(None),
+                "market": classify_market(None, 0),
                 "recommendations": calculate_recommendations(
                     listing,
                     None,
@@ -1042,22 +1097,28 @@ def analyze_listing(
 
     normalized_listing_price = listing_net_unit_price(listing)
 
+    # 只有至少3筆有效可比成交，才允許正式計算溢價／折價。
+    # 避免單筆異常成交造成「高於市場數百％」的錯誤結論。
     premium_ratio = None
     premium_percent = None
-    if normalized_listing_price is not None and market_median:
+
+    if sample_count >= 3 and normalized_listing_price is not None and market_median:
         premium_ratio = (
             normalized_listing_price - market_median
         ) / market_median
         premium_percent = premium_ratio * 100
 
-    market = classify_market(premium_ratio)
+    market = classify_market(
+        premium_ratio,
+        sample_count
+    )
 
     recommendations = calculate_recommendations(
         listing,
         market_median,
         q1,
         q3,
-        len(prices)
+        sample_count
     )
 
     comparable_rows = []
@@ -1101,6 +1162,7 @@ def analyze_listing(
         comparable_rows.append(
             {
                 "score": item["score"],
+                "tier": item.get("tier", 3),
                 "match_level": match_level,
                 "same_address": same_address,
                 "same_unit": same_unit,
@@ -1204,7 +1266,7 @@ def build_report(
     return {
         "generated_at": datetime.now().astimezone().isoformat(),
 
-        "stage": "第21階段：在售物件 × 實價成交比價引擎（同地址＋車位校正）",
+        "stage": "第24階段：在售物件 × 實價成交比價引擎（嚴格同類案例＋樣本門檻＋車位校正）",
 
         "summary": {
             "listing_count": total,
@@ -1255,7 +1317,7 @@ def main():
     print()
     print("=" * 70)
     print(
-        "第23階段：在售物件 × 實價成交比價引擎（Runner 路徑自動搜尋）"
+        "第24階段：在售物件 × 實價成交比價引擎（嚴格同類案例＋樣本門檻＋Runner 路徑自動搜尋）"
     )
     print("=" * 70)
 
@@ -1293,7 +1355,7 @@ def main():
 
     print()
     print("=" * 70)
-    print("第21階段完成")
+    print("第24階段完成")
     print("=" * 70)
 
     print()
