@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-19 22:18:33",
+  "generated_at": "2026-08-19 22:32:16",
   "districts": {
     "士林區": {
       "stats": {
@@ -886,5 +886,291 @@
       "daily_rank": 1
     },
     "note": "目前為路段級開發名單；尚未串接個別在售物件資料。"
+  },
+  "property_radar": {
+    "generated_for": "個別成交個案開發雷達 Top 10",
+    "top10": [
+      {
+        "district": "北投區",
+        "route": "崇仁路一段",
+        "transaction_id": "401",
+        "transaction_date": "2026-07-22",
+        "location": "崇仁路一段157巷3號二樓",
+        "unit_price": 16.88,
+        "total_price": 500.0,
+        "area": 29.62,
+        "product": "公寓(5樓含以下無電梯)／房地(土地+建物)／無／29.6坪",
+        "peer_median": 58.0,
+        "district_median": 106.43,
+        "peer_gap": -70.89655172413794,
+        "district_gap": -84.13981020388988,
+        "route_score": 45.4,
+        "score": 95.1,
+        "priority": "A｜優先開發",
+        "reasons": [
+          "近3個月成交",
+          "與路段中位價偏離-70.9%",
+          "與行政區中位價偏離-84.1%"
+        ],
+        "actions": [
+          "優先查同路段目前在售",
+          "檢查同類型產品價格差異",
+          "確認屋齡、樓層、格局與車位差異"
+        ],
+        "note": "成交個案開發線索；不代表目前仍在售，也不代表可識別屋主。",
+        "rank": 1
+      },
+      {
+        "district": "士林區",
+        "route": "中山北路五段",
+        "transaction_id": "151",
+        "transaction_date": "2026-06-07",
+        "location": "中山北路五段759號十三樓",
+        "unit_price": 99.01,
+        "total_price": 7850.0,
+        "area": 87.55,
+        "product": "大樓(11層含以上有電梯)／房地(土地+建物)+車位／有／87.5坪",
+        "peer_median": 84.285,
+        "district_median": 78.93,
+        "peer_gap": 17.470487038025755,
+        "district_gap": 25.44026352464208,
+        "route_score": 49.7,
+        "score": 92.6,
+        "priority": "A｜優先開發",
+        "reasons": [
+          "近3個月成交",
+          "與路段中位價偏離+17.5%",
+          "與行政區中位價偏離+25.4%"
+        ],
+        "actions": [
+          "優先查同路段目前在售",
+          "檢查同類型產品價格差異",
+          "確認屋齡、樓層、格局與車位差異"
+        ],
+        "note": "成交個案開發線索；不代表目前仍在售，也不代表可識別屋主。",
+        "rank": 2
+      },
+      {
+        "district": "北投區",
+        "route": "崇仁路一段",
+        "transaction_id": "644",
+        "transaction_date": "2026-05-09",
+        "location": "崇仁路一段94號三樓",
+        "unit_price": 67.67,
+        "total_price": 1400.0,
+        "area": 20.69,
+        "product": "公寓(5樓含以下無電梯)／房地(土地+建物)／無／20.7坪",
+        "peer_median": 58.0,
+        "district_median": 106.43,
+        "peer_gap": 16.672413793103452,
+        "district_gap": -36.41830311002538,
+        "route_score": 45.4,
+        "score": 85.1,
+        "priority": "A｜優先開發",
+        "reasons": [
+          "近3個月成交",
+          "與路段中位價偏離+16.7%",
+          "與行政區中位價偏離-36.4%"
+        ],
+        "actions": [
+          "優先查同路段目前在售",
+          "檢查同類型產品價格差異",
+          "確認屋齡、樓層、格局與車位差異"
+        ],
+        "note": "成交個案開發線索；不代表目前仍在售，也不代表可識別屋主。",
+        "rank": 3
+      },
+      {
+        "district": "北投區",
+        "route": "中央南路二段",
+        "transaction_id": "234",
+        "transaction_date": "2026-06-30",
+        "location": "中央南路二段12之10號三樓",
+        "unit_price": 49.28,
+        "total_price": 1260.0,
+        "area": 25.57,
+        "product": "大樓(11層含以上有電梯)／房地(土地+建物)+車位／有／25.6坪",
+        "peer_median": 52.150000000000006,
+        "district_median": 106.43,
+        "peer_gap": -5.503355704697994,
+        "district_gap": -53.69726580851264,
+        "route_score": 41.7,
+        "score": 80.9,
+        "priority": "A｜優先開發",
+        "reasons": [
+          "近3個月成交",
+          "與行政區中位價偏離-53.7%"
+        ],
+        "actions": [
+          "優先查同路段目前在售",
+          "確認屋齡、樓層、格局與車位差異"
+        ],
+        "note": "成交個案開發線索；不代表目前仍在售，也不代表可識別屋主。",
+        "rank": 4
+      },
+      {
+        "district": "北投區",
+        "route": "中央南路二段",
+        "transaction_id": "993",
+        "transaction_date": "2026-05-22",
+        "location": "中央南路二段12之12號二樓",
+        "unit_price": 55.02,
+        "total_price": 1788.0,
+        "area": 32.5,
+        "product": "大樓(11層含以上有電梯)／房地(土地+建物)／有／32.5坪",
+        "peer_median": 52.150000000000006,
+        "district_median": 106.43,
+        "peer_gap": 5.503355704697981,
+        "district_gap": -48.30404961007235,
+        "route_score": 41.7,
+        "score": 74.9,
+        "priority": "B｜本週追蹤",
+        "reasons": [
+          "近3個月成交",
+          "與行政區中位價偏離-48.3%"
+        ],
+        "actions": [
+          "優先查同路段目前在售",
+          "確認屋齡、樓層、格局與車位差異"
+        ],
+        "note": "成交個案開發線索；不代表目前仍在售，也不代表可識別屋主。",
+        "rank": 5
+      },
+      {
+        "district": "士林區",
+        "route": "中山北路五段",
+        "transaction_id": "158",
+        "transaction_date": "2026-06-04",
+        "location": "中山北路五段753號十五樓",
+        "unit_price": 78.54,
+        "total_price": 7107.0,
+        "area": 90.49,
+        "product": "大樓(11層含以上有電梯)／房地(土地+建物)+車位／有／90.5坪",
+        "peer_median": 84.285,
+        "district_median": 78.93,
+        "peer_gap": -6.816159458978454,
+        "district_gap": -0.49410870391486195,
+        "route_score": 49.7,
+        "score": 74.6,
+        "priority": "B｜本週追蹤",
+        "reasons": [
+          "近3個月成交"
+        ],
+        "actions": [
+          "優先查同路段目前在售"
+        ],
+        "note": "成交個案開發線索；不代表目前仍在售，也不代表可識別屋主。",
+        "rank": 6
+      },
+      {
+        "district": "士林區",
+        "route": "中山北路五段",
+        "transaction_id": "610",
+        "transaction_date": "2026-06-04",
+        "location": "中山北路五段755號十五樓",
+        "unit_price": 76.92,
+        "total_price": 6643.0,
+        "area": 86.36,
+        "product": "大樓(11層含以上有電梯)／房地(土地+建物)+車位／有／86.4坪",
+        "peer_median": 84.285,
+        "district_median": 78.93,
+        "peer_gap": -8.738209645844451,
+        "district_gap": -2.546560243253522,
+        "route_score": 49.7,
+        "score": 74.6,
+        "priority": "B｜本週追蹤",
+        "reasons": [
+          "近3個月成交"
+        ],
+        "actions": [
+          "優先查同路段目前在售"
+        ],
+        "note": "成交個案開發線索；不代表目前仍在售，也不代表可識別屋主。",
+        "rank": 7
+      },
+      {
+        "district": "士林區",
+        "route": "中山北路五段",
+        "transaction_id": "505",
+        "transaction_date": "2026-05-07",
+        "location": "中山北路五段755號七樓",
+        "unit_price": 90.03,
+        "total_price": 6000.0,
+        "area": 74.56,
+        "product": "大樓(11層含以上有電梯)／房地(土地+建物)+車位／有／74.6坪",
+        "peer_median": 84.285,
+        "district_median": 78.93,
+        "peer_gap": 6.816159458978471,
+        "district_gap": 14.063093880653735,
+        "route_score": 49.7,
+        "score": 73.6,
+        "priority": "B｜本週追蹤",
+        "reasons": [
+          "近3個月成交"
+        ],
+        "actions": [
+          "優先查同路段目前在售"
+        ],
+        "note": "成交個案開發線索；不代表目前仍在售，也不代表可識別屋主。",
+        "rank": 8
+      },
+      {
+        "district": "北投區",
+        "route": "崇仁路一段",
+        "transaction_id": "46",
+        "transaction_date": "2026-05-09",
+        "location": "崇仁路一段94號二樓",
+        "unit_price": 58.0,
+        "total_price": 1200.0,
+        "area": 20.69,
+        "product": "公寓(5樓含以下無電梯)／房地(土地+建物)／無／20.7坪",
+        "peer_median": 58.0,
+        "district_median": 106.43,
+        "peer_gap": 0.0,
+        "district_gap": -45.5040871934605,
+        "route_score": 45.4,
+        "score": 71.1,
+        "priority": "B｜本週追蹤",
+        "reasons": [
+          "近3個月成交",
+          "與行政區中位價偏離-45.5%"
+        ],
+        "actions": [
+          "優先查同路段目前在售",
+          "確認屋齡、樓層、格局與車位差異"
+        ],
+        "note": "成交個案開發線索；不代表目前仍在售，也不代表可識別屋主。",
+        "rank": 9
+      },
+      {
+        "district": "士林區",
+        "route": "忠誠路二段",
+        "transaction_id": "251",
+        "transaction_date": "2026-04-27",
+        "location": "忠誠路二段50巷8號三樓",
+        "unit_price": 62.15,
+        "total_price": 2800.0,
+        "area": 45.05,
+        "product": "公寓(5樓含以下無電梯)／房地(土地+建物)／無／45.0坪",
+        "peer_median": 63.375,
+        "district_median": 78.93,
+        "peer_gap": -1.9329388560157812,
+        "district_gap": -21.25934372228558,
+        "route_score": 28.1,
+        "score": 65.4,
+        "priority": "B｜本週追蹤",
+        "reasons": [
+          "近3個月成交",
+          "與行政區中位價偏離-21.3%"
+        ],
+        "actions": [
+          "優先查同路段目前在售",
+          "確認屋齡、樓層、格局與車位差異"
+        ],
+        "note": "成交個案開發線索；不代表目前仍在售，也不代表可識別屋主。",
+        "rank": 10
+      }
+    ],
+    "note": "目前以實價成交個案作為同路段／同類型屋主開發線索；尚未接入591等在售物件資料，因此不判定物件目前是否在售。"
   }
 }
