@@ -246,6 +246,125 @@ footer {
 .history-value { fill: #1d4ed8; font-size: 11px; font-weight: bold; }
 .no-chart-data { background: #f8fafc; color: #64748b; padding: 18px; border-radius: 10px; text-align: center; }
 
+
+.decision-dashboard {
+    margin: 25px 0 30px 0;
+    padding: 24px;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+}
+
+.decision-dashboard h2 {
+    margin-top: 0;
+}
+
+.decision-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.decision-summary-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px;
+    line-height: 1.7;
+}
+
+.decision-summary-title {
+    color: #1d4ed8;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.decision-summary-card small {
+    color: #64748b;
+}
+
+.decision-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.decision-card {
+    background: #f8fafc;
+    border: 1px solid #dbeafe;
+    border-radius: 10px;
+    padding: 16px;
+}
+
+.decision-card-title {
+    color: #0f172a;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.decision-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 0;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.decision-row:last-child {
+    border-bottom: 0;
+}
+
+.decision-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin: 18px 0;
+}
+
+.decision-panel {
+    padding: 18px;
+    border-radius: 10px;
+    line-height: 1.8;
+}
+
+.decision-panel h3 {
+    margin-top: 0;
+}
+
+.decision-panel.seller {
+    background: #fff7ed;
+    border-left: 5px solid #f97316;
+}
+
+.decision-panel.buyer {
+    background: #eff6ff;
+    border-left: 5px solid #2563eb;
+}
+
+.decision-panel.developer {
+    background: #f0fdf4;
+    border-left: 5px solid #16a34a;
+}
+
+.decision-alerts {
+    margin-top: 18px;
+    padding: 18px;
+    background: #f8fafc;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+}
+
+.decision-alerts h3 {
+    margin-top: 0;
+}
+
+.decision-alerts li {
+    margin-bottom: 8px;
+}
+
 @media(max-width:700px) {
 
     .district {
@@ -272,7 +391,7 @@ footer {
 
 <p>
 產生時間：
-2026-08-19 20:34:37
+2026-08-19 20:42:15
 </p>
 
 <p>
@@ -427,6 +546,105 @@ footer {
         <div class="hot-route-box">
             <h3>🔥 各區目前最活躍路段</h3>
             <ul><li>士林區：中山北路五段，4 筆，平均 86.12 萬／坪</li><li>北投區：北科路，11 筆，平均 112.46 萬／坪</li></ul>
+        </div>
+    </section>
+    
+
+        
+    <section class="decision-dashboard">
+        <h2>🎯 房仲實戰決策儀表板</h2>
+
+        <div class="decision-summary">
+            <div class="decision-summary-card">
+                <div class="decision-summary-title">📊 交易量</div>
+                <div>北投區 31筆；士林區 17筆</div>
+                <small>合計 48 筆</small>
+            </div>
+
+            <div class="decision-summary-card">
+                <div class="decision-summary-title">💰 價格差距</div>
+                <div>北投區平均單價較士林區高 +8.19%。</div>
+            </div>
+
+            <div class="decision-summary-card">
+                <div class="decision-summary-title">🔥 開發路段</div>
+                <div>士林區：中山北路五段 （4筆／熱度 344.50）；北投區：北科路 （11筆／熱度 1,237.01）</div>
+            </div>
+        </div>
+
+        <div class="decision-metrics">
+            
+        <div class="decision-card">
+            <div class="decision-card-title">士林區</div>
+            <div class="decision-row">
+                <span>交易量</span>
+                <strong>17 筆</strong>
+            </div>
+            <div class="decision-row">
+                <span>平均單價</span>
+                <strong>78.73 萬／坪</strong>
+            </div>
+            <div class="decision-row">
+                <span>近3個有資料月份</span>
+                <strong>-10.03%</strong>
+            </div>
+            <div class="decision-row">
+                <span>近6個有資料月份</span>
+                <strong>-19.08%</strong>
+            </div>
+        </div>
+        
+        <div class="decision-card">
+            <div class="decision-card-title">北投區</div>
+            <div class="decision-row">
+                <span>交易量</span>
+                <strong>31 筆</strong>
+            </div>
+            <div class="decision-row">
+                <span>平均單價</span>
+                <strong>85.18 萬／坪</strong>
+            </div>
+            <div class="decision-row">
+                <span>近3個有資料月份</span>
+                <strong>-33.71%</strong>
+            </div>
+            <div class="decision-row">
+                <span>近6個有資料月份</span>
+                <strong>-65.08%</strong>
+            </div>
+        </div>
+        
+        </div>
+
+        <div class="decision-grid">
+            <div class="decision-panel seller">
+                <h3>🏠 賣方策略</h3>
+                <p>北投區近期價格修正較明顯，賣方開價應更貼近實價，並預留合理議價空間，以降低銷售週期。</p>
+            </div>
+
+            <div class="decision-panel buyer">
+                <h3>🔎 買方策略</h3>
+                <p>買方可優先關注北投區近期價格修正的物件，但要排除低總價、特殊屋況或非主流產品造成的價格偏差。</p>
+            </div>
+
+            <div class="decision-panel developer">
+                <h3>📞 房仲開發重點</h3>
+                <p>
+                    優先追蹤交易量高、近期價格有明顯變化的路段，
+                    並將同路段成交案例整理成屋主可理解的價格帶。
+                    目前重點：士林區：中山北路五段 （4筆／熱度 344.50）；北投區：北科路 （11筆／熱度 1,237.01）
+                </p>
+            </div>
+        </div>
+
+        <div class="decision-alerts">
+            <h3>🚨 今日市場警示</h3>
+            <ul><li>🔴 士林區最近3個有資料月份價格下跌 10.03%，應提高議價與定價風險注意。</li><li>⚠️ 士林區最新月份僅 2 筆，近期價格訊號可信度偏低。</li><li>🔴 北投區最近3個有資料月份價格下跌 33.71%，應提高議價與定價風險注意。</li></ul>
+        </div>
+
+        <div class="analysis-note">
+            📌 本區塊為資料分析輔助，不代表單一物件的估價；實際委託開發仍應搭配屋齡、
+            樓層、格局、管理、車位、路段及個案成交條件。
         </div>
     </section>
     
@@ -1143,7 +1361,7 @@ footer {
 
 台北市士林區／北投區房市監控系統<br>
 
-第十階段：每日房市專業報告＋市場判讀
+第十一階段：房市監控＋市場判讀＋房仲實戰決策
 
 </footer>
 
