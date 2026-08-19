@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 台北市士林區／北投區
-第26階段：在售物件 × 實價成交多層級比價＋房仲實戰定價引擎
+第27階段：591成交資料庫＋時間衰減＋多層級比價＋房仲實戰定價引擎
 （A同門牌／同棟 → B同路段高度可比 → C同生活圈 → D區域行情 → E排除）
 
 功能：
@@ -21,7 +21,10 @@
 14. 屋齡／樓層／坪數／成交時間校正
 15. 以樣本權重計算市場合理單價
 16. 產生房仲實戰五段價格：目前開價／市場合理價／合理成交區間／買方建議出價／賣方建議底價
-17. 將結果輸出至 data/listing_comparison.json
+17. 官方實價與591成交資料去重，避免同一筆成交重複計算
+18. 支援 YYYY-MM / YYYY-MM-DD / 民國日期的成交日期解析
+19. 以來源可靠度＋成交新鮮度控制權重
+20. 將結果輸出至 data/listing_comparison.json
 
 注意：
 本程式先獨立運作，不修改既有 analyzer.py / report.py / main.py。
@@ -898,13 +901,131 @@ def transaction_time_adjustment(transaction):
     date_text = clean_text(transaction.get("date"))
     if not date_text:
         return 1.0
-    try:
-        dt = datetime.strptime(date_text, "%Y-%m-%d").date()
-        today = datetime.now().date()
-        years = max(0.0, (today - dt).days / 365.25)
-        return max(0.92, min(1.08, 1.0 + years * 0.02))
-    except Exception:
+    dt = parse_transaction_date(date_text)
+    if dt is None:
         return 1.0
+    today = datetime.now().date()
+    years = max(0.0, (today - dt).days / 365.25)
+    return max(0.92, min(1.08, 1.0 + years * 0.02))
+
+
+def parse_transaction_date(value):
+    """
+    將成交日期統一解析成 date。
+    支援：
+    - YYYY-MM-DD
+    - YYYY-MM
+    - YYYY/MM/DD、YYYY/MM
+    - 民國7碼日期，例如 1090715
+    - 民國年月，例如 10907
+    月份資料會使用該月1日作為權重基準。
+    """
+    text = clean_text(value)
+    if not text:
+        return None
+
+    text = text.replace("/", "-").replace(".", "-")
+    digits = re.sub(r"\D", "", text)
+
+    # 西元 YYYY-MM-DD / YYYY-MM
+    m = re.match(r"^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$", text)
+    if m:
+        try:
+            year = int(m.group(1))
+            month = int(m.group(2))
+            day = int(m.group(3) or 1)
+            return datetime(year, month, day).date()
+        except ValueError:
+            return None
+
+    # 純數字：民國年月日 7 碼或民國年月 5 碼
+    if len(digits) == 7:
+        try:
+            year = int(digits[:3]) + 1911
+            month = int(digits[3:5])
+            day = int(digits[5:7])
+            return datetime(year, month, day).date()
+        except ValueError:
+            return None
+
+    if len(digits) == 5:
+        try:
+            year = int(digits[:3]) + 1911
+            month = int(digits[3:5])
+            return datetime(year, month, 1).date()
+        except ValueError:
+            return None
+
+    return None
+
+
+def source_reliability_weight(transaction):
+    """
+    來源可靠度：官方實價為主，591為輔。
+    591 不會被排除，但在與官方資料同等條件下稍降低權重。
+    """
+    source = clean_text(transaction.get("source")).upper()
+    if source == "MOI":
+        return 1.00
+    if source == "591":
+        return 0.90
+    return 0.85
+
+
+def transaction_dedupe_key(transaction):
+    """
+    建立成交去重鍵。
+    優先使用來源交易ID；跨來源則以地址／樓層／日期／坪數／單價組合判斷。
+    """
+    source = clean_text(transaction.get("source")).upper()
+    tx_id = clean_text(transaction.get("id"))
+    if tx_id:
+        return (source, tx_id)
+
+    date = clean_text(transaction.get("date"))
+    address = transaction.get("address_key") or address_key(transaction.get("location"))
+    floor = extract_floor_key(transaction.get("floor"))
+    area = round_number(transaction.get("area"), 2)
+    price = round_number(transaction.get("unit_price"), 2)
+    return ("FALLBACK", address, floor, date, area, price)
+
+
+def deduplicate_transactions(transactions):
+    """
+    去除完全相同的資料；若官方與591疑似是同一筆，官方優先保留。
+    只有在地址、樓層、日期、坪數、單價都高度一致時才視為跨來源重複。
+    """
+    result = []
+    seen_source_ids = set()
+    cross_source = {}
+
+    for tx in transactions:
+        key = transaction_dedupe_key(tx)
+        source = clean_text(tx.get("source")).upper()
+        if key in seen_source_ids:
+            continue
+        seen_source_ids.add(key)
+
+        address = tx.get("address_key") or address_key(tx.get("location"))
+        floor = extract_floor_key(tx.get("floor"))
+        date = clean_text(tx.get("date"))
+        area = round_number(tx.get("area"), 2)
+        price = round_number(tx.get("unit_price"), 2)
+        cross_key = (address, floor, date, area, price)
+
+        existing_index = cross_source.get(cross_key)
+        if existing_index is None:
+            cross_source[cross_key] = len(result)
+            result.append(tx)
+            continue
+
+        existing = result[existing_index]
+        existing_source = clean_text(existing.get("source")).upper()
+        # 同一筆跨來源時，以 MOI 為主；591 僅作補充，不重複計算。
+        if existing_source != "MOI" and source == "MOI":
+            result[existing_index] = tx
+
+    return result
 
 
 def recency_weight(transaction):
@@ -912,12 +1033,11 @@ def recency_weight(transaction):
     date_text = clean_text(transaction.get("date"))
     if not date_text:
         return 0.55
-    try:
-        dt = datetime.strptime(date_text, "%Y-%m-%d").date()
-        days = max(0, (datetime.now().date() - dt).days)
-        return round(max(0.55, math.exp(-days / 730.0)), 4)
-    except Exception:
+    dt = parse_transaction_date(date_text)
+    if dt is None:
         return 0.55
+    days = max(0, (datetime.now().date() - dt).days)
+    return round(max(0.55, math.exp(-days / 730.0)), 4)
 
 
 def floor_adjustment(listing, transaction):
@@ -1370,7 +1490,8 @@ def analyze_listing(listing, transactions):
                 # 樣本權重 = 比價層級 × 相似度 × 近期性
                 base_weight = item["weight"]
                 time_weight = recency_weight(item["transaction"])
-                final_weight = round(base_weight * time_weight, 4)
+                source_weight = source_reliability_weight(item["transaction"])
+                final_weight = round(base_weight * time_weight * source_weight, 4)
                 rows.append((item, price, final_weight))
         return rows
 
@@ -1516,6 +1637,7 @@ def build_comparable_rows(listing, rows, is_reference=False):
                 "area_adjustment": round_number(area_adjustment(listing, transaction), 4),
                 "time_adjustment": round_number(transaction_time_adjustment(transaction), 4),
                 "recency_weight": round_number(recency_weight(transaction), 4),
+                "source_weight": round_number(source_reliability_weight(transaction), 4),
                 "reference_only": is_reference,
                 "source": transaction.get("source", "MOI"),
                 "match_level": (
@@ -1604,7 +1726,7 @@ def build_report(
     return {
         "generated_at": datetime.now().astimezone().isoformat(),
 
-        "stage": "第26階段：多層級比價＋房仲實戰定價引擎（A/B/C主要比價＋D行情參考＋E排除）",
+        "stage": "第27階段：591成交資料庫＋時間衰減＋多層級比價＋房仲實戰定價引擎（A/B/C主要比價＋D行情參考＋E排除）",
 
         "summary": {
             "listing_count": total,
@@ -1617,6 +1739,7 @@ def build_report(
             "591_transaction_count": sum(
                 1 for tx in transactions if tx.get("source") == "591"
             ),
+            "deduplication_enabled": True,
             "below_market": low_count,
             "near_market": near_count,
             "above_market": high_count,
@@ -1661,7 +1784,7 @@ def main():
     print()
     print("=" * 70)
     print(
-        "第26階段：多層級比價＋房仲實戰定價引擎（A/B/C主要比價＋D行情參考＋Runner 路徑自動搜尋）"
+        "第27階段：591成交資料庫＋時間衰減＋多層級比價＋D行情參考＋Runner 路徑自動搜尋"
     )
     print("=" * 70)
 
@@ -1692,10 +1815,10 @@ def main():
     transactions_591 = load_591_transactions()
     print(f"591 歷史成交：{len(transactions_591)} 筆")
 
-    transactions = moi_transactions + transactions_591
+    transactions = deduplicate_transactions(moi_transactions + transactions_591)
 
     print()
-    print(f"合併後有效成交：{len(transactions)} 筆")
+    print(f"去重後有效成交：{len(transactions)} 筆")
     print("開始進行市場比價……")
 
     report = build_report(
@@ -1707,7 +1830,7 @@ def main():
 
     print()
     print("=" * 70)
-    print("第26階段完成")
+    print("第27階段完成")
     print("=" * 70)
 
     print()
@@ -1724,6 +1847,8 @@ def main():
         f"其中官方實價：{report['summary']['moi_transaction_count']} 筆；"
         f"591：{report['summary']['591_transaction_count']} 筆"
     )
+    print("來源權重：MOI=1.00；591=0.90；未知來源=0.85")
+    print("成交日期支援：YYYY-MM、YYYY-MM-DD、民國日期")
 
     print(
         f"🟢 低於市場："
