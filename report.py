@@ -1120,7 +1120,8 @@ def create_html(report):
     )
 
     if latest_transaction_date:
-        if isinstance(latest_transaction_date, tuple):
+    if isinstance(latest_transaction_date, (tuple, list)):
+        if len(latest_transaction_date) >= 3:
             latest_transaction_date = (
                 f"{latest_transaction_date[0]}年"
                 f"{latest_transaction_date[1]}月"
@@ -1128,8 +1129,12 @@ def create_html(report):
             )
         else:
             latest_transaction_date = str(latest_transaction_date)
+    elif hasattr(latest_transaction_date, "strftime"):
+        latest_transaction_date = latest_transaction_date.strftime("%Y年%m月%d日")
     else:
-        latest_transaction_date = "無資料"
+        latest_transaction_date = str(latest_transaction_date)
+else:
+    latest_transaction_date = "無資料"
 
     cards = ""
 
