@@ -35,43 +35,99 @@ from statistics import mean, median
 # 路徑設定
 # ============================================================
 
-def find_repo_root():
+def find_file(filename):
     """
-    找到真正包含 data/current_listings.csv 的專案根目錄。
-    GitHub Actions 有時會在巢狀工作目錄執行，不能只假設 __file__
-    的上一層就是 repository root。
+    在 GitHub Actions runner 的常見工作目錄中尋找檔案。
+
+    原因：
+    workflow 目前不是標準 checkout 後直接執行，而是可能把程式下載到
+    巢狀目錄、再由前一個步驟產生 CSV。此時 __file__/data 不一定就是
+    CSV 實際所在位置。
     """
     start = os.path.abspath(os.path.dirname(__file__))
-    candidates = [start]
 
+    # 第一優先：程式所在目錄往上找 data/filename
     current = start
-    for _ in range(6):
+    for _ in range(8):
+        direct = os.path.join(current, "data", filename)
+        if os.path.isfile(direct):
+            return os.path.abspath(direct)
+
+        direct2 = os.path.join(current, filename)
+        if os.path.isfile(direct2):
+            return os.path.abspath(direct2)
+
         parent = os.path.dirname(current)
         if parent == current:
             break
-        candidates.append(parent)
         current = parent
 
-    for candidate in candidates:
-        if os.path.exists(os.path.join(candidate, "data", "current_listings.csv")):
-            return candidate
+    # 第二優先：目前工作目錄往上找
+    current = os.path.abspath(os.getcwd())
+    for _ in range(8):
+        direct = os.path.join(current, "data", filename)
+        if os.path.isfile(direct):
+            return os.path.abspath(direct)
 
-    # 找不到時仍回傳程式所在目錄，讓後面的錯誤訊息保持清楚。
-    return start
+        direct2 = os.path.join(current, filename)
+        if os.path.isfile(direct2):
+            return os.path.abspath(direct2)
+
+        parent = os.path.dirname(current)
+        if parent == current:
+            break
+        current = parent
+
+    # 第三優先：GitHub Actions workspace 內遞迴搜尋。
+    # 只搜尋 /home/runner/work，避免掃描整個系統。
+    workspace = "/home/runner/work"
+    if os.path.isdir(workspace):
+        matches = []
+        for root, dirs, files in os.walk(workspace):
+            # 排除不必要的大型目錄
+            dirs[:] = [
+                d for d in dirs
+                if d not in {".git", "__pycache__", ".venv", "node_modules"}
+            ]
+
+            if filename in files:
+                matches.append(os.path.join(root, filename))
+
+        if matches:
+            # 優先選擇包含 data 目錄的結果
+            data_matches = [
+                p for p in matches
+                if os.path.basename(os.path.dirname(p)) == "data"
+            ]
+            return os.path.abspath(sorted(data_matches or matches)[0])
+
+    return None
+
+
+def find_repo_root():
+    listing_path = find_file("current_listings.csv")
+
+    if listing_path:
+        return os.path.dirname(os.path.dirname(listing_path))
+
+    return os.path.abspath(os.path.dirname(__file__))
 
 
 BASE_DIR = find_repo_root()
 
-LISTING_FILE = os.path.join(
-    BASE_DIR,
-    "data",
-    "current_listings.csv"
+_LISTING_FOUND = find_file("current_listings.csv")
+_TRANSACTION_FOUND = find_file("taipei_transactions.csv")
+
+LISTING_FILE = (
+    _LISTING_FOUND
+    if _LISTING_FOUND
+    else os.path.join(BASE_DIR, "data", "current_listings.csv")
 )
 
-TRANSACTION_FILE = os.path.join(
-    BASE_DIR,
-    "data",
-    "taipei_transactions.csv"
+TRANSACTION_FILE = (
+    _TRANSACTION_FOUND
+    if _TRANSACTION_FOUND
+    else os.path.join(BASE_DIR, "data", "taipei_transactions.csv")
 )
 
 OUTPUT_FILE = os.path.join(
@@ -294,9 +350,20 @@ def round_number(value, digits=2):
 # ============================================================
 
 def load_listings():
+    global LISTING_FILE
+
+    if not os.path.exists(LISTING_FILE):
+        fresh_path = find_file("current_listings.csv")
+        if fresh_path:
+            LISTING_FILE = fresh_path
+
     if not os.path.exists(LISTING_FILE):
         raise FileNotFoundError(
-            f"找不到在售物件資料：{LISTING_FILE}"
+            "找不到在售物件資料。"
+            f"\n目前工作目錄：{os.getcwd()}"
+            f"\n程式位置：{os.path.abspath(__file__)}"
+            f"\n最後搜尋路徑：{LISTING_FILE}"
+            "\n請確認「執行在售案源整理」步驟是否真的產生 current_listings.csv。"
         )
 
     listings = []
@@ -1188,7 +1255,7 @@ def main():
     print()
     print("=" * 70)
     print(
-        "第20階段：在售物件 × 實價成交比價引擎"
+        "第23階段：在售物件 × 實價成交比價引擎（Runner 路徑自動搜尋）"
     )
     print("=" * 70)
 
