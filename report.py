@@ -25,9 +25,13 @@ from statistics import mean, median
 # 基本設定
 # ============================================================
 
-INPUT_FILE = "data/taipei_transactions.csv"
-REPORT_DIR = "reports"
-LISTING_COMPARISON_FILE = "data/listing_comparison.json"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+INPUT_FILE = os.path.join(BASE_DIR, "data", "taipei_transactions.csv")
+REPORT_DIR = os.path.join(BASE_DIR, "reports")
+LISTING_COMPARISON_FILE = os.path.join(
+    BASE_DIR, "data", "listing_comparison.json"
+)
 
 TARGET_DISTRICTS = [
     "士林區",
