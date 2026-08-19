@@ -365,6 +365,99 @@ footer {
     margin-bottom: 8px;
 }
 
+
+.stage12 {
+    margin: 25px 0 30px 0;
+    padding: 24px;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.07);
+}
+
+.stage12 h2 {
+    margin-top: 0;
+}
+
+.stage12 h3 {
+    margin-top: 24px;
+}
+
+.stage12-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin: 18px 0;
+}
+
+.stage12-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px;
+    line-height: 1.6;
+}
+
+.stage12-title {
+    color: #1d4ed8;
+    font-weight: 700;
+}
+
+.stage12-value {
+    margin-top: 6px;
+    font-size: 24px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.stage12-action {
+    margin: 18px 0;
+    padding: 18px;
+    background: #eff6ff;
+    border-left: 5px solid #2563eb;
+    border-radius: 10px;
+    line-height: 1.8;
+}
+
+.stage12-table {
+    margin-bottom: 18px;
+}
+
+.alert-badge {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.alert-high {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.alert-medium {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.score {
+    color: #1d4ed8;
+}
+
+.stage12-note {
+    margin-top: 18px;
+    padding: 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    color: #64748b;
+    line-height: 1.7;
+}
+
+.table-scroll {
+    overflow-x: auto;
+}
+
 @media(max-width:700px) {
 
     .district {
@@ -391,7 +484,7 @@ footer {
 
 <p>
 產生時間：
-2026-08-19 20:42:15
+2026-08-19 20:55:24
 </p>
 
 <p>
@@ -646,6 +739,203 @@ footer {
             📌 本區塊為資料分析輔助，不代表單一物件的估價；實際委託開發仍應搭配屋齡、
             樓層、格局、管理、車位、路段及個案成交條件。
         </div>
+    </section>
+    
+
+        
+    <section class="stage12">
+
+        <h2>🚨 第12階段｜房市異常警報＋房仲開發名單</h2>
+
+        <div class="stage12-summary">
+            <div class="stage12-card">
+                <div class="stage12-title">🚨 異常警報</div>
+                <div class="stage12-value">1</div>
+                <div>個路段</div>
+            </div>
+
+            <div class="stage12-card">
+                <div class="stage12-title">🔥 第一開發優先</div>
+                <div class="stage12-value">
+                    北科路
+                </div>
+                <div>
+                    北投區
+                </div>
+            </div>
+
+            <div class="stage12-card">
+                <div class="stage12-title">🎯 開發分數</div>
+                <div class="stage12-value">
+                    54.0
+                </div>
+                <div>滿分100</div>
+            </div>
+
+            <div class="stage12-card">
+                <div class="stage12-title">📊 監控路段</div>
+                <div class="stage12-value">
+                    6
+                </div>
+                <div>個</div>
+            </div>
+        </div>
+
+        <div class="stage12-action">
+            <strong>📞 今日房仲行動：</strong>
+            目前共有 1 個路段達到異常警報門檻，建議優先檢查成交明細與同路段競品。
+        </div>
+
+        <h3>🚨 路段異常警報</h3>
+
+        <div class="table-scroll">
+        <table class="stage12-table">
+            <tr>
+                <th>排名</th>
+                <th>行政區</th>
+                <th>路段</th>
+                <th>等級</th>
+                <th>警報內容</th>
+                <th>判斷依據</th>
+            </tr>
+            
+        <tr>
+            <td>1</td>
+            <td>士林區</td>
+            <td>中山北路五段</td>
+            <td>
+                <span class="alert-badge alert-medium">
+                    中
+                </span>
+            </td>
+            <td>士林區中山北路五段最新月份交易量+200%，交易活躍度明顯增加。</td>
+            <td>與前一有資料月份比較</td>
+        </tr>
+        
+        </table>
+        </div>
+
+        <h3>🔥 今日房仲開發優先名單 Top 10</h3>
+
+        <div class="table-scroll">
+        <table class="stage12-table">
+            <tr>
+                <th>排名</th>
+                <th>行政區</th>
+                <th>路段</th>
+                <th>交易量</th>
+                <th>平均單價</th>
+                <th>最新價格變化</th>
+                <th>交易量變化</th>
+                <th>資料新鮮度</th>
+                <th>開發分數</th>
+            </tr>
+            
+        <tr>
+            <td><strong>1</strong></td>
+            <td>北投區</td>
+            <td><strong>北科路</strong></td>
+            <td>11 筆</td>
+            <td>112.46</td>
+            <td>+7.27%</td>
+            <td>+0%</td>
+            <td>25個月前</td>
+            <td>
+                <strong class="score">
+                    54.0
+                </strong>
+            </td>
+        </tr>
+        
+        <tr>
+            <td><strong>2</strong></td>
+            <td>士林區</td>
+            <td><strong>中山北路五段</strong></td>
+            <td>4 筆</td>
+            <td>86.12</td>
+            <td>-5.78%</td>
+            <td>+200%</td>
+            <td>1個月前</td>
+            <td>
+                <strong class="score">
+                    49.7
+                </strong>
+            </td>
+        </tr>
+        
+        <tr>
+            <td><strong>3</strong></td>
+            <td>北投區</td>
+            <td><strong>崇仁路一段</strong></td>
+            <td>3 筆</td>
+            <td>47.52</td>
+            <td>-73.14%</td>
+            <td>-50%</td>
+            <td>本期</td>
+            <td>
+                <strong class="score">
+                    45.4
+                </strong>
+            </td>
+        </tr>
+        
+        <tr>
+            <td><strong>4</strong></td>
+            <td>北投區</td>
+            <td><strong>中央南路二段</strong></td>
+            <td>2 筆</td>
+            <td>52.15</td>
+            <td>-10.43%</td>
+            <td>+0%</td>
+            <td>1個月前</td>
+            <td>
+                <strong class="score">
+                    41.7
+                </strong>
+            </td>
+        </tr>
+        
+        <tr>
+            <td><strong>5</strong></td>
+            <td>士林區</td>
+            <td><strong>忠誠路二段</strong></td>
+            <td>2 筆</td>
+            <td>63.38</td>
+            <td>+3.94%</td>
+            <td>+0%</td>
+            <td>2個月前</td>
+            <td>
+                <strong class="score">
+                    28.1
+                </strong>
+            </td>
+        </tr>
+        
+        <tr>
+            <td><strong>6</strong></td>
+            <td>北投區</td>
+            <td><strong>文林北路</strong></td>
+            <td>4 筆</td>
+            <td>121.18</td>
+            <td>-1.93%</td>
+            <td>+0%</td>
+            <td>15個月前</td>
+            <td>
+                <strong class="score">
+                    24.1
+                </strong>
+            </td>
+        </tr>
+        
+        </table>
+        </div>
+
+        <div class="stage12-note">
+            ⚠️ 本階段屬於「路段監控與開發排序」，不是單一物件估價。
+            價格異常必須再搭配屋齡、樓層、坪數、格局、車位及個案條件確認。
+            若最新月份交易筆數過少，系統會降低警報判斷的可信度。
+        </div>
+
     </section>
     
 

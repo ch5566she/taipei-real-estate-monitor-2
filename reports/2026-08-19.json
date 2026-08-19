@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-19 20:42:15",
+  "generated_at": "2026-08-19 20:55:24",
   "districts": {
     "士林區": {
       "stats": {
@@ -77,6 +77,40 @@
           "average": 63.375,
           "median": 63.375,
           "heat": 126.75
+        }
+      ],
+      "route_monitor": [
+        {
+          "route": "中山北路五段",
+          "count": 4,
+          "average": 86.125,
+          "latest_month": "2026-06",
+          "latest_count": 3,
+          "latest_average": 84.82333333333334,
+          "previous_month": "2026-05",
+          "previous_count": 1,
+          "previous_average": 90.03,
+          "price_change": -5.783257432707612,
+          "volume_change": 200.0,
+          "route_age_months": 1,
+          "price_gap_vs_district_median": 9.115672114531854,
+          "development_score": 49.7
+        },
+        {
+          "route": "忠誠路二段",
+          "count": 2,
+          "average": 63.375,
+          "latest_month": "2026-05",
+          "latest_count": 1,
+          "latest_average": 64.6,
+          "previous_month": "2026-04",
+          "previous_count": 1,
+          "previous_average": 62.15,
+          "price_change": 3.9420756234915455,
+          "volume_change": 0.0,
+          "route_age_months": 2,
+          "price_gap_vs_district_median": -19.70733561383505,
+          "development_score": 28.1
         }
       ],
       "latest_transaction_date": [
@@ -245,6 +279,72 @@
           "average": 52.150000000000006,
           "median": 52.150000000000006,
           "heat": 104.30000000000001
+        }
+      ],
+      "route_monitor": [
+        {
+          "route": "北科路",
+          "count": 11,
+          "average": 112.45545454545454,
+          "latest_month": "2024-06",
+          "latest_count": 1,
+          "latest_average": 120.16,
+          "previous_month": "2024-05",
+          "previous_count": 1,
+          "previous_average": 112.02,
+          "price_change": 7.266559542938762,
+          "volume_change": 0.0,
+          "route_age_months": 25,
+          "price_gap_vs_district_median": 5.661424922911337,
+          "development_score": 54.0
+        },
+        {
+          "route": "崇仁路一段",
+          "count": 3,
+          "average": 47.516666666666666,
+          "latest_month": "2026-07",
+          "latest_count": 1,
+          "latest_average": 16.88,
+          "previous_month": "2026-05",
+          "previous_count": 2,
+          "previous_average": 62.835,
+          "price_change": -73.13599108776955,
+          "volume_change": -50.0,
+          "route_age_months": 0,
+          "price_gap_vs_district_median": -55.35406683579191,
+          "development_score": 45.4
+        },
+        {
+          "route": "中央南路二段",
+          "count": 2,
+          "average": 52.150000000000006,
+          "latest_month": "2026-06",
+          "latest_count": 1,
+          "latest_average": 49.28,
+          "previous_month": "2026-05",
+          "previous_count": 1,
+          "previous_average": 55.02,
+          "price_change": -10.43256997455471,
+          "volume_change": 0.0,
+          "route_age_months": 1,
+          "price_gap_vs_district_median": -51.00065770929248,
+          "development_score": 41.7
+        },
+        {
+          "route": "文林北路",
+          "count": 4,
+          "average": 121.1825,
+          "latest_month": "2025-04",
+          "latest_count": 1,
+          "latest_average": 119.72,
+          "previous_month": "2025-02",
+          "previous_count": 1,
+          "previous_average": 122.08,
+          "price_change": -1.9331585845347308,
+          "volume_change": 0.0,
+          "route_age_months": 15,
+          "price_gap_vs_district_median": 13.861223339284034,
+          "development_score": 24.1
         }
       ],
       "latest_transaction_date": [
