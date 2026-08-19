@@ -1176,6 +1176,14 @@ def build_report_data(records):
             months
         )
 
+        trend_windows = build_trend_windows(
+            months
+        )
+
+        price_bands = build_price_bands(
+            items
+        )
+
         routes = route_analysis(
             items
         )
@@ -1194,6 +1202,10 @@ def build_report_data(records):
             "trend": trend,
 
             "months": months,
+
+            "trend_windows": trend_windows,
+
+            "price_bands": price_bands,
 
             "routes": routes,
             "route_monitor": route_monitor,
@@ -1355,6 +1367,95 @@ def get_recent_month_info(months, window=3):
     }
 
 
+
+# ============================================================
+# 第13階段：多期間趨勢＋價格帶分析
+# ============================================================
+
+PRICE_BANDS = [
+    ("50萬以下", None, 50),
+    ("50–70萬", 50, 70),
+    ("70–90萬", 70, 90),
+    ("90–110萬", 90, 110),
+    ("110萬以上", 110, None),
+]
+
+
+def build_trend_windows(months):
+    """
+    計算最近 3／6／12 個「有資料月份」的價格變化。
+    注意：月份可能不連續，因此明確標示為「有資料月份」。
+    """
+    result = {}
+
+    for window in (3, 6, 12):
+        info = get_recent_month_info(months, window)
+        info["window"] = window
+        info["label"] = f"近{window}個有資料月份"
+        result[str(window)] = info
+
+    return result
+
+
+def build_price_bands(items):
+    """
+    依每筆成交單價建立價格帶。
+    單價單位沿用本系統的「萬元／坪」。
+    """
+    total = len(items)
+    result = []
+
+    for label, lower, upper in PRICE_BANDS:
+        group = []
+
+        for item in items:
+            price = to_float(item.get("unit_price"))
+
+            if price is None:
+                continue
+
+            if lower is None:
+                matched = price < upper
+            elif upper is None:
+                matched = price >= lower
+            else:
+                matched = lower <= price < upper
+
+            if matched:
+                group.append(item)
+
+        count = len(group)
+        share = (count / total * 100) if total else None
+        average = (
+            mean(item["unit_price"] for item in group)
+            if group else None
+        )
+
+        result.append({
+            "band": label,
+            "lower": lower,
+            "upper": upper,
+            "count": count,
+            "share": share,
+            "average": average,
+        })
+
+    return result
+
+
+def build_price_band_summary(price_bands):
+    """找出交易量最高的價格帶。"""
+    valid = [
+        item for item in (price_bands or [])
+        if item.get("count", 0) > 0
+    ]
+
+    if not valid:
+        return None
+
+    return max(valid, key=lambda item: item.get("count", 0))
+
+
 def build_decision_dashboard(report):
     """
     第11階段：房仲實戰決策儀表板。
@@ -1381,6 +1482,8 @@ def build_decision_dashboard(report):
 
         recent3 = get_recent_month_info(months, 3)
         recent6 = get_recent_month_info(months, 6)
+        recent12 = get_recent_month_info(months, 12)
+        trend_windows = data.get("trend_windows", {})
 
         metrics[district] = {
             "count": stats.get("count", 0),
@@ -1391,6 +1494,8 @@ def build_decision_dashboard(report):
             "confidence": trend.get("confidence", "低"),
             "recent3": recent3,
             "recent6": recent6,
+            "recent12": recent12,
+            "trend_windows": trend_windows,
         }
 
     # --------------------------------------------------------
@@ -1529,9 +1634,11 @@ def build_decision_dashboard(report):
         m = metrics[district]
         c3 = m["recent3"]["change"]
         c6 = m["recent6"]["change"]
+        c12 = m["recent12"]["change"]
 
         c3_text = "—" if c3 is None else f"{c3:+.2f}%"
         c6_text = "—" if c6 is None else f"{c6:+.2f}%"
+        c12_text = "—" if c12 is None else f"{c12:+.2f}%"
 
         metric_cards += f"""
         <div class="decision-card">
@@ -1551,6 +1658,10 @@ def build_decision_dashboard(report):
             <div class="decision-row">
                 <span>近6個有資料月份</span>
                 <strong>{c6_text}</strong>
+            </div>
+            <div class="decision-row">
+                <span>近12個有資料月份</span>
+                <strong>{c12_text}</strong>
             </div>
         </div>
         """
@@ -2042,6 +2153,131 @@ def build_stage12_alerts(report):
     """
 
 
+
+def build_trend_and_price_band_section(report):
+    """建立多期間趨勢與價格帶分析區塊。"""
+    sections = []
+
+    for district in TARGET_DISTRICTS:
+        data = report.get("districts", {}).get(district)
+        if not data:
+            continue
+
+        windows = data.get("trend_windows", {})
+        bands = data.get("price_bands", [])
+        latest = data.get("latest_transaction_date")
+
+        trend_rows = ""
+        for window in (3, 6, 12):
+            info = windows.get(str(window), {})
+            count = info.get("count", 0)
+            change = info.get("change")
+            start_month = info.get("start_month") or "—"
+            end_month = info.get("end_month") or "—"
+            latest_count = info.get("latest_count", 0)
+
+            change_text = "資料不足"
+            if change is not None:
+                change_text = f"{change:+.2f}%"
+
+            period_text = (
+                f"{start_month} → {end_month}"
+                if count >= 2 else
+                "有效月份不足，無法比較"
+            )
+
+            trend_rows += f"""
+                <tr>
+                    <td>近{window}個有資料月份</td>
+                    <td>{count} 個</td>
+                    <td>{html_escape(period_text)}</td>
+                    <td>{change_text}</td>
+                    <td>{latest_count} 筆</td>
+                </tr>
+            """
+
+        band_rows = ""
+        for band in bands:
+            share = band.get("share")
+            share_text = "—" if share is None else f"{share:.1f}%"
+            average = band.get("average")
+
+            band_rows += f"""
+                <tr>
+                    <td>{html_escape(band.get("band", "—"))}</td>
+                    <td>{band.get("count", 0):,} 筆</td>
+                    <td>{share_text}</td>
+                    <td>{money(average)}</td>
+                </tr>
+            """
+
+        top_band = build_price_band_summary(bands)
+        if top_band:
+            top_band_text = (
+                f"目前交易量最高價格帶為「{html_escape(top_band['band'])}」，"
+                f"{top_band['count']:,} 筆，占全部有效交易 "
+                f"{top_band.get('share', 0):.1f}%。"
+            )
+        else:
+            top_band_text = "目前沒有足夠交易資料建立價格帶分布。"
+
+        sections.append(f"""
+        <section class="trend-band-section">
+            <h2>📊 {html_escape(district)}｜3／6／12月趨勢＋價格帶分析</h2>
+
+            <div class="trend-band-grid">
+                <div>
+                    <h3>📈 多期間價格趨勢</h3>
+                    <div class="table-scroll">
+                    <table>
+                        <tr>
+                            <th>觀察期間</th>
+                            <th>有效月份</th>
+                            <th>比較區間</th>
+                            <th>價格變化</th>
+                            <th>最新月交易量</th>
+                        </tr>
+                        {trend_rows}
+                    </table>
+                    </div>
+                    <p class="analysis-note">
+                        ⚠️ 以上以「最近N個有資料月份」計算；若月份不連續，不視為連續月數。
+                        價格變化為第一個有效月份與最新有效月份的平均單價比較。
+                    </p>
+                </div>
+
+                <div>
+                    <h3>💰 單價價格帶分布</h3>
+                    <div class="table-scroll">
+                    <table>
+                        <tr>
+                            <th>價格帶（萬元／坪）</th>
+                            <th>交易量</th>
+                            <th>占比</th>
+                            <th>該價格帶平均</th>
+                        </tr>
+                        {band_rows}
+                    </table>
+                    </div>
+                    <div class="band-highlight">
+                        🔎 {top_band_text}
+                    </div>
+                </div>
+            </div>
+        </section>
+        """)
+
+    if not sections:
+        return """
+        <section class="trend-band-section">
+            <h2>📊 3／6／12月趨勢＋價格帶分析</h2>
+            <div class="analysis-note">目前沒有足夠行政區資料可分析。</div>
+        </section>
+        """
+
+    return "".join(sections)
+
+
 def create_html(report):
     # ============================================================
     # 第12-1階段：士林／北投市場總覽
@@ -2115,6 +2351,7 @@ def create_html(report):
     """
     market_analysis = build_market_comparison(report)
     decision_dashboard = build_decision_dashboard(report)
+    trend_band_analysis = build_trend_and_price_band_section(report)
     stage12_alerts = build_stage12_alerts(report)
 
     generated_at = report[
@@ -2259,6 +2496,24 @@ def create_html(report):
                     </strong>
                 </p>
 
+            </div>
+
+            <div class="district-mini-analysis">
+                <h3>📊 3／6／12個有資料月份</h3>
+                <div class="mini-period-grid">
+                    <div class="mini-period">
+                        <span>近3月</span>
+                        <strong>{(data.get("trend_windows", {}).get("3", {}).get("change") is None and "—") or f"{data.get("trend_windows", {}).get("3", {}).get("change"):+.2f}%"}</strong>
+                    </div>
+                    <div class="mini-period">
+                        <span>近6月</span>
+                        <strong>{(data.get("trend_windows", {}).get("6", {}).get("change") is None and "—") or f"{data.get("trend_windows", {}).get("6", {}).get("change"):+.2f}%"}</strong>
+                    </div>
+                    <div class="mini-period">
+                        <span>近12月</span>
+                        <strong>{(data.get("trend_windows", {}).get("12", {}).get("change") is None and "—") or f"{data.get("trend_windows", {}).get("12", {}).get("change"):+.2f}%"}</strong>
+                    </div>
+                </div>
             </div>
 
             <h3>🔥 市場熱門路段</h3>
@@ -2816,6 +3071,72 @@ footer {{
     overflow-x: auto;
 }}
 
+
+.trend-band-section {{
+    margin: 25px 0 30px 0;
+    padding: 24px;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+}}
+
+.trend-band-section h2 {{
+    margin-top: 0;
+}}
+
+.trend-band-grid {{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+}}
+
+.band-highlight {{
+    margin-top: 12px;
+    padding: 14px;
+    background: #eff6ff;
+    border-left: 4px solid #2563eb;
+    border-radius: 8px;
+    line-height: 1.7;
+}}
+
+.district-mini-analysis {{
+    margin: 18px 0;
+    padding: 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+}}
+
+.district-mini-analysis h3 {{
+    margin-top: 0;
+}}
+
+.mini-period-grid {{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}}
+
+.mini-period {{
+    padding: 12px;
+    background: #ffffff;
+    border: 1px solid #dbeafe;
+    border-radius: 8px;
+}}
+
+.mini-period span {{
+    display: block;
+    color: #64748b;
+    font-size: 13px;
+}}
+
+.mini-period strong {{
+    display: block;
+    margin-top: 5px;
+    font-size: 18px;
+    color: #1d4ed8;
+}}
+
 @media(max-width:700px) {{
 
     .district {{
@@ -2824,6 +3145,14 @@ footer {{
 
     table {{
         font-size: 13px;
+    }}
+
+    .trend-band-grid {{
+        grid-template-columns: 1fr;
+    }}
+
+    .mini-period-grid {{
+        grid-template-columns: 1fr;
     }}
 
 }}
@@ -2860,6 +3189,8 @@ footer {{
 
         {decision_dashboard}
 
+        {trend_band_analysis}
+
         {stage12_alerts}
 
         {cards}
@@ -2870,7 +3201,7 @@ footer {{
 
 台北市士林區／北投區房市監控系統<br>
 
-第十一階段：房市監控＋市場判讀＋房仲實戰決策
+第十三階段：房市監控＋多期間趨勢＋價格帶＋房仲實戰決策
 
 </footer>
 
