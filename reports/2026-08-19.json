@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-19 22:07:35",
+  "generated_at": "2026-08-19 22:18:33",
   "districts": {
     "士林區": {
       "stats": {
@@ -686,5 +686,205 @@
         ]
       }
     ]
+  },
+  "development_today": {
+    "generated_for": "每日房仲開發行動名單",
+    "top10": [
+      {
+        "rank": 1,
+        "district": "士林區",
+        "route": "中山北路五段",
+        "score": 75.0,
+        "priority": "A｜今天處理",
+        "transaction_count": 4,
+        "latest_count": 3,
+        "average": 86.125,
+        "price_change": -5.783257432707612,
+        "volume_change": 200.0,
+        "price_gap_vs_district_median": 9.115672114531854,
+        "reasons": [
+          "最新月份3筆",
+          "交易量+200%",
+          "最新資料"
+        ],
+        "actions": [
+          "優先查近期成交與同路段在售",
+          "優先找新增案源",
+          "列入今日優先電話／拜訪名單"
+        ],
+        "workflow": [
+          "① 查近期成交",
+          "② 比對目前在售",
+          "③ 建立屋主名單",
+          "④ 設定回訪日期"
+        ],
+        "daily_rank": 1
+      },
+      {
+        "rank": 2,
+        "district": "北投區",
+        "route": "崇仁路一段",
+        "score": 58.2,
+        "priority": "C｜持續觀察",
+        "transaction_count": 3,
+        "latest_count": 1,
+        "average": 47.516666666666666,
+        "price_change": -73.13599108776955,
+        "volume_change": -50.0,
+        "price_gap_vs_district_median": -55.35406683579191,
+        "reasons": [
+          "低於行政區中位數55.4%",
+          "最新資料"
+        ],
+        "actions": [
+          "搜尋相對低價物件與屋主開發機會",
+          "列入今日優先電話／拜訪名單"
+        ],
+        "workflow": [
+          "① 查近期成交",
+          "② 比對目前在售",
+          "③ 建立屋主名單",
+          "④ 設定回訪日期"
+        ],
+        "daily_rank": 2
+      },
+      {
+        "rank": 3,
+        "district": "北投區",
+        "route": "中央南路二段",
+        "score": 54.5,
+        "priority": "C｜持續觀察",
+        "transaction_count": 2,
+        "latest_count": 1,
+        "average": 52.150000000000006,
+        "price_change": -10.43256997455471,
+        "volume_change": 0.0,
+        "price_gap_vs_district_median": -51.00065770929248,
+        "reasons": [
+          "低於行政區中位數51.0%",
+          "最新資料"
+        ],
+        "actions": [
+          "搜尋相對低價物件與屋主開發機會",
+          "列入今日優先電話／拜訪名單"
+        ],
+        "workflow": [
+          "① 查近期成交",
+          "② 比對目前在售",
+          "③ 建立屋主名單",
+          "④ 設定回訪日期"
+        ],
+        "daily_rank": 3
+      },
+      {
+        "rank": 4,
+        "district": "北投區",
+        "route": "北科路",
+        "score": 51.0,
+        "priority": "C｜持續觀察",
+        "transaction_count": 11,
+        "latest_count": 1,
+        "average": 112.45545454545454,
+        "price_change": 7.266559542938762,
+        "volume_change": 0.0,
+        "price_gap_vs_district_median": 5.661424922911337,
+        "reasons": [
+          "路段交易資料可追蹤"
+        ],
+        "actions": [
+          "本週持續追蹤成交與在售變化"
+        ],
+        "workflow": [
+          "① 查近期成交",
+          "② 比對目前在售",
+          "③ 建立屋主名單",
+          "④ 設定回訪日期"
+        ],
+        "daily_rank": 4
+      },
+      {
+        "rank": 5,
+        "district": "士林區",
+        "route": "忠誠路二段",
+        "score": 50.5,
+        "priority": "C｜持續觀察",
+        "transaction_count": 2,
+        "latest_count": 1,
+        "average": 63.375,
+        "price_change": 3.9420756234915455,
+        "volume_change": 0.0,
+        "price_gap_vs_district_median": -19.70733561383505,
+        "reasons": [
+          "低於行政區中位數19.7%"
+        ],
+        "actions": [
+          "搜尋相對低價物件與屋主開發機會"
+        ],
+        "workflow": [
+          "① 查近期成交",
+          "② 比對目前在售",
+          "③ 建立屋主名單",
+          "④ 設定回訪日期"
+        ],
+        "daily_rank": 5
+      },
+      {
+        "rank": 6,
+        "district": "北投區",
+        "route": "文林北路",
+        "score": 36.0,
+        "priority": "C｜持續觀察",
+        "transaction_count": 4,
+        "latest_count": 1,
+        "average": 121.1825,
+        "price_change": -1.9331585845347308,
+        "volume_change": 0.0,
+        "price_gap_vs_district_median": 13.861223339284034,
+        "reasons": [
+          "路段交易資料可追蹤"
+        ],
+        "actions": [
+          "本週持續追蹤成交與在售變化"
+        ],
+        "workflow": [
+          "① 查近期成交",
+          "② 比對目前在售",
+          "③ 建立屋主名單",
+          "④ 設定回訪日期"
+        ],
+        "daily_rank": 6
+      }
+    ],
+    "today_focus": {
+      "rank": 1,
+      "district": "士林區",
+      "route": "中山北路五段",
+      "score": 75.0,
+      "priority": "A｜今天處理",
+      "transaction_count": 4,
+      "latest_count": 3,
+      "average": 86.125,
+      "price_change": -5.783257432707612,
+      "volume_change": 200.0,
+      "price_gap_vs_district_median": 9.115672114531854,
+      "reasons": [
+        "最新月份3筆",
+        "交易量+200%",
+        "最新資料"
+      ],
+      "actions": [
+        "優先查近期成交與同路段在售",
+        "優先找新增案源",
+        "列入今日優先電話／拜訪名單"
+      ],
+      "workflow": [
+        "① 查近期成交",
+        "② 比對目前在售",
+        "③ 建立屋主名單",
+        "④ 設定回訪日期"
+      ],
+      "daily_rank": 1
+    },
+    "note": "目前為路段級開發名單；尚未串接個別在售物件資料。"
   }
 }
