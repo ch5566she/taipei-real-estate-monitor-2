@@ -1,3 +1,0 @@
-listing_id,district,location,title,total_price,building_area,unit_price,age,floor,total_floors,rooms,halls,bathrooms,parking,source,url,status
-TEST001,士林區,中山北路五段,測試房源A,3200,38.5,83.12,15,6,12,3,2,2,有,manual,,active
-TEST002,北投區,北科路,測試房源B,2800,30.2,92.72,8,8,15,3,2,2,有,manual,,active
