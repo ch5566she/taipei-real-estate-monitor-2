@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-19 21:28:45",
+  "generated_at": "2026-08-19 21:55:20",
   "districts": {
     "士林區": {
       "stats": {
@@ -61,6 +61,80 @@
           "average": 66.35499999999999,
           "median": 66.35499999999999,
           "change": -14.79997065135647
+        }
+      ],
+      "trend_windows": {
+        "3": {
+          "count": 3,
+          "start_month": "2026-05",
+          "end_month": "2026-07",
+          "change": -10.02711864406781,
+          "latest_average": 66.35499999999999,
+          "latest_count": 2,
+          "window": 3,
+          "label": "近3個有資料月份"
+        },
+        "6": {
+          "count": 5,
+          "start_month": "2020-12",
+          "end_month": "2026-07",
+          "change": -19.07926829268294,
+          "latest_average": 66.35499999999999,
+          "latest_count": 2,
+          "window": 6,
+          "label": "近6個有資料月份"
+        },
+        "12": {
+          "count": 5,
+          "start_month": "2020-12",
+          "end_month": "2026-07",
+          "change": -19.07926829268294,
+          "latest_average": 66.35499999999999,
+          "latest_count": 2,
+          "window": 12,
+          "label": "近12個有資料月份"
+        }
+      },
+      "price_bands": [
+        {
+          "band": "50萬以下",
+          "lower": null,
+          "upper": 50,
+          "count": 1,
+          "share": 5.88235294117647,
+          "average": 19.88
+        },
+        {
+          "band": "50–70萬",
+          "lower": 50,
+          "upper": 70,
+          "count": 5,
+          "share": 29.411764705882355,
+          "average": 62.616
+        },
+        {
+          "band": "70–90萬",
+          "lower": 70,
+          "upper": 90,
+          "count": 5,
+          "share": 29.411764705882355,
+          "average": 79.138
+        },
+        {
+          "band": "90–110萬",
+          "lower": 90,
+          "upper": 110,
+          "count": 5,
+          "share": 29.411764705882355,
+          "average": 96.812
+        },
+        {
+          "band": "110萬以上",
+          "lower": 110,
+          "upper": null,
+          "count": 1,
+          "share": 5.88235294117647,
+          "average": 125.72
         }
       ],
       "routes": [
@@ -249,6 +323,80 @@
           "average": 42.635,
           "median": 32.04,
           "change": -31.785559187218578
+        }
+      ],
+      "trend_windows": {
+        "3": {
+          "count": 3,
+          "start_month": "2026-05",
+          "end_month": "2026-07",
+          "change": -33.71166478796595,
+          "latest_average": 42.635,
+          "latest_count": 4,
+          "window": 3,
+          "label": "近3個有資料月份"
+        },
+        "6": {
+          "count": 6,
+          "start_month": "2025-02",
+          "end_month": "2026-07",
+          "change": -65.07617955439056,
+          "latest_average": 42.635,
+          "latest_count": 4,
+          "window": 6,
+          "label": "近6個有資料月份"
+        },
+        "12": {
+          "count": 12,
+          "start_month": "2024-02",
+          "end_month": "2026-07",
+          "change": -60.57790106333797,
+          "latest_average": 42.635,
+          "latest_count": 4,
+          "window": 12,
+          "label": "近12個有資料月份"
+        }
+      },
+      "price_bands": [
+        {
+          "band": "50萬以下",
+          "lower": null,
+          "upper": 50,
+          "count": 6,
+          "share": 19.35483870967742,
+          "average": 35.711666666666666
+        },
+        {
+          "band": "50–70萬",
+          "lower": 50,
+          "upper": 70,
+          "count": 6,
+          "share": 19.35483870967742,
+          "average": 58.656666666666666
+        },
+        {
+          "band": "70–90萬",
+          "lower": 70,
+          "upper": 90,
+          "count": 3,
+          "share": 9.67741935483871,
+          "average": 82.05
+        },
+        {
+          "band": "90–110萬",
+          "lower": 90,
+          "upper": 110,
+          "count": 5,
+          "share": 16.129032258064516,
+          "average": 107.55
+        },
+        {
+          "band": "110萬以上",
+          "lower": 110,
+          "upper": null,
+          "count": 11,
+          "share": 35.483870967741936,
+          "average": 117.31090909090909
         }
       ],
       "routes": [

@@ -458,6 +458,72 @@ footer {
     overflow-x: auto;
 }
 
+
+.trend-band-section {
+    margin: 25px 0 30px 0;
+    padding: 24px;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+}
+
+.trend-band-section h2 {
+    margin-top: 0;
+}
+
+.trend-band-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+}
+
+.band-highlight {
+    margin-top: 12px;
+    padding: 14px;
+    background: #eff6ff;
+    border-left: 4px solid #2563eb;
+    border-radius: 8px;
+    line-height: 1.7;
+}
+
+.district-mini-analysis {
+    margin: 18px 0;
+    padding: 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+}
+
+.district-mini-analysis h3 {
+    margin-top: 0;
+}
+
+.mini-period-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.mini-period {
+    padding: 12px;
+    background: #ffffff;
+    border: 1px solid #dbeafe;
+    border-radius: 8px;
+}
+
+.mini-period span {
+    display: block;
+    color: #64748b;
+    font-size: 13px;
+}
+
+.mini-period strong {
+    display: block;
+    margin-top: 5px;
+    font-size: 18px;
+    color: #1d4ed8;
+}
+
 @media(max-width:700px) {
 
     .district {
@@ -466,6 +532,14 @@ footer {
 
     table {
         font-size: 13px;
+    }
+
+    .trend-band-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .mini-period-grid {
+        grid-template-columns: 1fr;
     }
 
 }
@@ -484,7 +558,7 @@ footer {
 
 <p>
 產生時間：
-2026-08-19 21:28:45
+2026-08-19 21:55:20
 </p>
 
 <p>
@@ -685,6 +759,10 @@ footer {
                 <span>近6個有資料月份</span>
                 <strong>-19.08%</strong>
             </div>
+            <div class="decision-row">
+                <span>近12個有資料月份</span>
+                <strong>-19.08%</strong>
+            </div>
         </div>
         
         <div class="decision-card">
@@ -704,6 +782,10 @@ footer {
             <div class="decision-row">
                 <span>近6個有資料月份</span>
                 <strong>-65.08%</strong>
+            </div>
+            <div class="decision-row">
+                <span>近12個有資料月份</span>
+                <strong>-60.58%</strong>
             </div>
         </div>
         
@@ -741,6 +823,214 @@ footer {
         </div>
     </section>
     
+
+        
+        <section class="trend-band-section">
+            <h2>📊 士林區｜3／6／12月趨勢＋價格帶分析</h2>
+
+            <div class="trend-band-grid">
+                <div>
+                    <h3>📈 多期間價格趨勢</h3>
+                    <div class="table-scroll">
+                    <table>
+                        <tr>
+                            <th>觀察期間</th>
+                            <th>有效月份</th>
+                            <th>比較區間</th>
+                            <th>價格變化</th>
+                            <th>最新月交易量</th>
+                        </tr>
+                        
+                <tr>
+                    <td>近3個有資料月份</td>
+                    <td>3 個</td>
+                    <td>2026-05 → 2026-07</td>
+                    <td>-10.03%</td>
+                    <td>2 筆</td>
+                </tr>
+            
+                <tr>
+                    <td>近6個有資料月份</td>
+                    <td>5 個</td>
+                    <td>2020-12 → 2026-07</td>
+                    <td>-19.08%</td>
+                    <td>2 筆</td>
+                </tr>
+            
+                <tr>
+                    <td>近12個有資料月份</td>
+                    <td>5 個</td>
+                    <td>2020-12 → 2026-07</td>
+                    <td>-19.08%</td>
+                    <td>2 筆</td>
+                </tr>
+            
+                    </table>
+                    </div>
+                    <p class="analysis-note">
+                        ⚠️ 以上以「最近N個有資料月份」計算；若月份不連續，不視為連續月數。
+                        價格變化為第一個有效月份與最新有效月份的平均單價比較。
+                    </p>
+                </div>
+
+                <div>
+                    <h3>💰 單價價格帶分布</h3>
+                    <div class="table-scroll">
+                    <table>
+                        <tr>
+                            <th>價格帶（萬元／坪）</th>
+                            <th>交易量</th>
+                            <th>占比</th>
+                            <th>該價格帶平均</th>
+                        </tr>
+                        
+                <tr>
+                    <td>50萬以下</td>
+                    <td>1 筆</td>
+                    <td>5.9%</td>
+                    <td>19.88</td>
+                </tr>
+            
+                <tr>
+                    <td>50–70萬</td>
+                    <td>5 筆</td>
+                    <td>29.4%</td>
+                    <td>62.62</td>
+                </tr>
+            
+                <tr>
+                    <td>70–90萬</td>
+                    <td>5 筆</td>
+                    <td>29.4%</td>
+                    <td>79.14</td>
+                </tr>
+            
+                <tr>
+                    <td>90–110萬</td>
+                    <td>5 筆</td>
+                    <td>29.4%</td>
+                    <td>96.81</td>
+                </tr>
+            
+                <tr>
+                    <td>110萬以上</td>
+                    <td>1 筆</td>
+                    <td>5.9%</td>
+                    <td>125.72</td>
+                </tr>
+            
+                    </table>
+                    </div>
+                    <div class="band-highlight">
+                        🔎 目前交易量最高價格帶為「50–70萬」，5 筆，占全部有效交易 29.4%。
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section class="trend-band-section">
+            <h2>📊 北投區｜3／6／12月趨勢＋價格帶分析</h2>
+
+            <div class="trend-band-grid">
+                <div>
+                    <h3>📈 多期間價格趨勢</h3>
+                    <div class="table-scroll">
+                    <table>
+                        <tr>
+                            <th>觀察期間</th>
+                            <th>有效月份</th>
+                            <th>比較區間</th>
+                            <th>價格變化</th>
+                            <th>最新月交易量</th>
+                        </tr>
+                        
+                <tr>
+                    <td>近3個有資料月份</td>
+                    <td>3 個</td>
+                    <td>2026-05 → 2026-07</td>
+                    <td>-33.71%</td>
+                    <td>4 筆</td>
+                </tr>
+            
+                <tr>
+                    <td>近6個有資料月份</td>
+                    <td>6 個</td>
+                    <td>2025-02 → 2026-07</td>
+                    <td>-65.08%</td>
+                    <td>4 筆</td>
+                </tr>
+            
+                <tr>
+                    <td>近12個有資料月份</td>
+                    <td>12 個</td>
+                    <td>2024-02 → 2026-07</td>
+                    <td>-60.58%</td>
+                    <td>4 筆</td>
+                </tr>
+            
+                    </table>
+                    </div>
+                    <p class="analysis-note">
+                        ⚠️ 以上以「最近N個有資料月份」計算；若月份不連續，不視為連續月數。
+                        價格變化為第一個有效月份與最新有效月份的平均單價比較。
+                    </p>
+                </div>
+
+                <div>
+                    <h3>💰 單價價格帶分布</h3>
+                    <div class="table-scroll">
+                    <table>
+                        <tr>
+                            <th>價格帶（萬元／坪）</th>
+                            <th>交易量</th>
+                            <th>占比</th>
+                            <th>該價格帶平均</th>
+                        </tr>
+                        
+                <tr>
+                    <td>50萬以下</td>
+                    <td>6 筆</td>
+                    <td>19.4%</td>
+                    <td>35.71</td>
+                </tr>
+            
+                <tr>
+                    <td>50–70萬</td>
+                    <td>6 筆</td>
+                    <td>19.4%</td>
+                    <td>58.66</td>
+                </tr>
+            
+                <tr>
+                    <td>70–90萬</td>
+                    <td>3 筆</td>
+                    <td>9.7%</td>
+                    <td>82.05</td>
+                </tr>
+            
+                <tr>
+                    <td>90–110萬</td>
+                    <td>5 筆</td>
+                    <td>16.1%</td>
+                    <td>107.55</td>
+                </tr>
+            
+                <tr>
+                    <td>110萬以上</td>
+                    <td>11 筆</td>
+                    <td>35.5%</td>
+                    <td>117.31</td>
+                </tr>
+            
+                    </table>
+                    </div>
+                    <div class="band-highlight">
+                        🔎 目前交易量最高價格帶為「110萬以上」，11 筆，占全部有效交易 35.5%。
+                    </div>
+                </div>
+            </div>
+        </section>
+        
 
         
     <section class="stage12">
@@ -1019,6 +1309,24 @@ footer {
 
             </div>
 
+            <div class="district-mini-analysis">
+                <h3>📊 3／6／12個有資料月份</h3>
+                <div class="mini-period-grid">
+                    <div class="mini-period">
+                        <span>近3月</span>
+                        <strong>-10.03%</strong>
+                    </div>
+                    <div class="mini-period">
+                        <span>近6月</span>
+                        <strong>-19.08%</strong>
+                    </div>
+                    <div class="mini-period">
+                        <span>近12月</span>
+                        <strong>-19.08%</strong>
+                    </div>
+                </div>
+            </div>
+
             <h3>🔥 市場熱門路段</h3>
 
             <table>
@@ -1263,6 +1571,24 @@ footer {
                     </strong>
                 </p>
 
+            </div>
+
+            <div class="district-mini-analysis">
+                <h3>📊 3／6／12個有資料月份</h3>
+                <div class="mini-period-grid">
+                    <div class="mini-period">
+                        <span>近3月</span>
+                        <strong>-33.71%</strong>
+                    </div>
+                    <div class="mini-period">
+                        <span>近6月</span>
+                        <strong>-65.08%</strong>
+                    </div>
+                    <div class="mini-period">
+                        <span>近12月</span>
+                        <strong>-60.58%</strong>
+                    </div>
+                </div>
             </div>
 
             <h3>🔥 市場熱門路段</h3>
@@ -1651,7 +1977,7 @@ footer {
 
 台北市士林區／北投區房市監控系統<br>
 
-第十一階段：房市監控＋市場判讀＋房仲實戰決策
+第十三階段：房市監控＋多期間趨勢＋價格帶＋房仲實戰決策
 
 </footer>
 
