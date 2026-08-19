@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-第19階段：士林／北投在售案源資料整理器
+第26階段：士林／北投在售案源資料整理器
 
 用途：
-1. 讀取 data/current_listings.csv（或指定的來源 CSV）
+1. 讀取 data/raw_listings.csv（或指定的來源 CSV）
 2. 標準化欄位
 3. 僅保留士林區／北投區
 4. 計算缺少的單價（總價 ÷ 坪數）
@@ -26,7 +26,12 @@ from zoneinfo import ZoneInfo
 
 TARGET_DISTRICTS = {"士林區", "北投區"}
 
-OUTPUT_PATH = os.path.join("data", "current_listings.csv")
+# 第26階段：
+# raw_listings.csv = 真實在售房源資料入口
+# current_listings.csv = 本程式整理後的標準化輸出
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+RAW_LISTINGS_PATH = os.path.join(BASE_DIR, "data", "raw_listings.csv")
+OUTPUT_PATH = os.path.join(BASE_DIR, "data", "current_listings.csv")
 
 CANONICAL_FIELDS = [
     "listing_id",
@@ -209,21 +214,98 @@ def deduplicate(rows):
     return result
 
 
-def collect(source_path=OUTPUT_PATH, output_path=OUTPUT_PATH):
+def collect(source_path=RAW_LISTINGS_PATH, output_path=OUTPUT_PATH):
+    """
+    將真實在售房源入口 CSV 標準化為 current_listings.csv。
+
+    第26階段的重要規則：
+    1. 預設來源是 data/raw_listings.csv。
+    2. 不再把 current_listings.csv 當成自己的來源。
+    3. 來源不存在或沒有有效士林／北投資料時，不產生假資料。
+    4. 不自動保留 TEST001 / TEST002 等測試物件。
+    """
+    source_path = os.path.abspath(source_path)
+    output_path = os.path.abspath(output_path)
+
+    if not os.path.exists(source_path):
+        print("=" * 70)
+        print("⚠️ 今日沒有取得真實在售房源資料")
+        print(f"找不到資料來源：{source_path}")
+        print("請將真實公開房源資料放入 data/raw_listings.csv")
+        print("=" * 70)
+
+        # 不用舊 current_listings.csv 冒充今日資料。
+        if os.path.exists(output_path):
+            try:
+                os.remove(output_path)
+                print(f"已移除舊的在售資料：{output_path}")
+            except OSError as exc:
+                print(f"⚠️ 無法移除舊資料：{exc}")
+
+        return []
+
     raw_rows = read_csv(source_path)
 
+    if not raw_rows:
+        print("=" * 70)
+        print("⚠️ 今日沒有取得真實在售房源資料")
+        print(f"資料來源為空：{source_path}")
+        print("=" * 70)
+
+        if os.path.exists(output_path):
+            try:
+                os.remove(output_path)
+            except OSError:
+                pass
+
+        return []
+
     normalized = []
+
     for index, row in enumerate(raw_rows, start=1):
         item = normalize_row(row, index)
 
+        # 不讓測試物件進入正式每日資料。
+        listing_id = clean_text(item.get("listing_id"))
+        source = clean_text(item.get("source"))
+
+        if listing_id.upper().startswith("TEST"):
+            continue
+
+        if source.lower() == "manual" and listing_id.upper().startswith("TEST"):
+            continue
+
         if item["district"] not in TARGET_DISTRICTS:
+            continue
+
+        # 至少要有物件名稱/位置與價格或坪數中的基本資料。
+        if not item["location"] and not item["title"]:
+            continue
+
+        if not item["total_price"] and not item["unit_price"]:
             continue
 
         normalized.append(item)
 
     normalized = deduplicate(normalized)
 
+    if not normalized:
+        print("=" * 70)
+        print("⚠️ 今日沒有取得有效的士林／北投真實在售房源資料")
+        print(f"來源：{source_path}")
+        print("請確認 raw_listings.csv 包含有效房源及價格資料。")
+        print("=" * 70)
+
+        if os.path.exists(output_path):
+            try:
+                os.remove(output_path)
+            except OSError:
+                pass
+
+        return []
+
     now = datetime.now(ZoneInfo("Asia/Taipei")).strftime("%Y-%m-%d %H:%M:%S")
+
     for item in normalized:
         if not item["updated_at"]:
             item["updated_at"] = now
@@ -239,24 +321,40 @@ def collect(source_path=OUTPUT_PATH, output_path=OUTPUT_PATH):
 
 
 def main():
-    source = sys.argv[1] if len(sys.argv) >= 2 else OUTPUT_PATH
-    output = sys.argv[2] if len(sys.argv) >= 3 else OUTPUT_PATH
+    source = (
+        os.path.abspath(sys.argv[1])
+        if len(sys.argv) >= 2
+        else RAW_LISTINGS_PATH
+    )
+
+    output = (
+        os.path.abspath(sys.argv[2])
+        if len(sys.argv) >= 3
+        else OUTPUT_PATH
+    )
 
     rows = collect(source, output)
 
     print("=" * 70)
-    print("第19階段：在售案源資料整理完成")
+    print("第26階段：在售案源資料整理完成")
     print("=" * 70)
     print(f"來源：{source}")
     print(f"輸出：{output}")
-    print(f"士林／北投有效在售資料：{len(rows):,} 筆")
+    print(f"士林／北投有效真實在售資料：{len(rows):,} 筆")
 
     district_counts = {}
+
     for row in rows:
-        district_counts[row["district"]] = district_counts.get(row["district"], 0) + 1
+        district = row["district"]
+        district_counts[district] = district_counts.get(district, 0) + 1
 
     for district in sorted(TARGET_DISTRICTS):
         print(f"  {district}：{district_counts.get(district, 0):,} 筆")
+
+    if not rows:
+        print()
+        print("⚠️ 本次沒有真實在售房源。")
+        print("⚠️ 不會使用舊 current_listings.csv 或 TEST001/TEST002 冒充今日資料。")
 
     print("=" * 70)
 
