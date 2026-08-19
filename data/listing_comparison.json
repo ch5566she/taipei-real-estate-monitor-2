@@ -1,0 +1,282 @@
+{
+  "generated_at": "2026-08-19T16:38:13.412056+00:00",
+  "stage": "第20階段：在售物件 × 實價成交比價引擎",
+  "summary": {
+    "listing_count": 2,
+    "transaction_count": 48,
+    "below_market": 0,
+    "near_market": 0,
+    "above_market": 2,
+    "insufficient_sample": 0
+  },
+  "results": [
+    {
+      "listing": {
+        "listing_id": "TEST001",
+        "district": "士林區",
+        "location": "中山北路五段",
+        "street": "中山北路五段",
+        "title": "測試房源A",
+        "total_price": 3200.0,
+        "building_area": 38.5,
+        "unit_price": 83.12,
+        "age": 15.0,
+        "floor": 6.0,
+        "total_floors": 12.0,
+        "rooms": 3.0,
+        "halls": 2.0,
+        "bathrooms": 2.0,
+        "parking": "有",
+        "source": "manual",
+        "url": "",
+        "updated_at": "2026-08-19 23:50:11"
+      },
+      "comparison": {
+        "sample_count": 5,
+        "market_average": 71.2,
+        "market_median": 66.62,
+        "q1": 66.3,
+        "q3": 78.93,
+        "listing_unit_price": 83.12,
+        "premium_ratio": 0.2477,
+        "premium_percent": 24.77,
+        "market": {
+          "level": "高於市場",
+          "emoji": "🔴",
+          "description": "目前開價明顯高於附近成交行情"
+        },
+        "recommendations": {
+          "seller_price_low": 66.3,
+          "seller_price_high": 78.93,
+          "buyer_price_low": 61.29,
+          "buyer_price_high": 64.62,
+          "note": "成交樣本達基本比較門檻，可作為主要議價參考之一"
+        },
+        "comparables": [
+          {
+            "score": 65,
+            "date": "2026-05-17",
+            "location": "天母東路50巷20號六樓之3",
+            "street": "天母東路",
+            "building_type": "華廈",
+            "area": 40.54,
+            "unit_price": 66.62,
+            "transaction_price": 2380.0,
+            "building_name": ""
+          },
+          {
+            "score": 65,
+            "date": "2020-12-19",
+            "location": "劍潭路61號九樓",
+            "street": "劍潭路",
+            "building_type": "大樓",
+            "area": 40.74,
+            "unit_price": 82.0,
+            "transaction_price": 2668.0,
+            "building_name": ""
+          },
+          {
+            "score": 65,
+            "date": "2026-04-19",
+            "location": "至誠路二段27之1號三樓",
+            "street": "至誠路二段",
+            "building_type": "公寓",
+            "area": 34.81,
+            "unit_price": 66.3,
+            "transaction_price": 2308.0,
+            "building_name": ""
+          },
+          {
+            "score": 55,
+            "date": "2026-06-04",
+            "location": "士東路99號三樓",
+            "street": "士東路",
+            "building_type": "公寓",
+            "area": 43.71,
+            "unit_price": 78.93,
+            "transaction_price": 3450.0,
+            "building_name": ""
+          },
+          {
+            "score": 55,
+            "date": "2026-04-27",
+            "location": "忠誠路二段50巷8號三樓",
+            "street": "忠誠路二段",
+            "building_type": "公寓",
+            "area": 45.05,
+            "unit_price": 62.15,
+            "transaction_price": 2800.0,
+            "building_name": ""
+          }
+        ]
+      }
+    },
+    {
+      "listing": {
+        "listing_id": "TEST002",
+        "district": "北投區",
+        "location": "北科路",
+        "street": "北科路",
+        "title": "測試房源B",
+        "total_price": 2800.0,
+        "building_area": 30.2,
+        "unit_price": 92.72,
+        "age": 8.0,
+        "floor": 8.0,
+        "total_floors": 15.0,
+        "rooms": 3.0,
+        "halls": 2.0,
+        "bathrooms": 2.0,
+        "parking": "有",
+        "source": "manual",
+        "url": "",
+        "updated_at": "2026-08-19 23:50:11"
+      },
+      "comparison": {
+        "sample_count": 11,
+        "market_average": 63.34,
+        "market_median": 55.02,
+        "q1": 42.02,
+        "q3": 91.5,
+        "listing_unit_price": 92.72,
+        "premium_ratio": 0.6852,
+        "premium_percent": 68.52,
+        "market": {
+          "level": "高於市場",
+          "emoji": "🔴",
+          "description": "目前開價明顯高於附近成交行情"
+        },
+        "recommendations": {
+          "seller_price_low": 42.02,
+          "seller_price_high": 91.5,
+          "buyer_price_low": 50.62,
+          "buyer_price_high": 53.37,
+          "note": "成交樣本達基本比較門檻，可作為主要議價參考之一"
+        },
+        "comparables": [
+          {
+            "score": 105,
+            "date": "2024-05-04",
+            "location": "北科路60號三樓",
+            "street": "北科路",
+            "building_type": "大樓",
+            "area": 32.95,
+            "unit_price": 112.02,
+            "transaction_price": 3218.0,
+            "building_name": ""
+          },
+          {
+            "score": 95,
+            "date": "2023-11-29",
+            "location": "北科路60號九樓",
+            "street": "北科路",
+            "building_type": "大樓",
+            "area": 33.56,
+            "unit_price": 110.94,
+            "transaction_price": 3200.0,
+            "building_name": ""
+          },
+          {
+            "score": 65,
+            "date": "2026-07-22",
+            "location": "崇仁路一段157巷3號二樓",
+            "street": "崇仁路一段",
+            "building_type": "公寓",
+            "area": 29.62,
+            "unit_price": 16.88,
+            "transaction_price": 500.0,
+            "building_name": ""
+          },
+          {
+            "score": 65,
+            "date": "2026-06-04",
+            "location": "大業路300巷17之1號三樓",
+            "street": "大業路",
+            "building_type": "公寓",
+            "area": 31.23,
+            "unit_price": 67.24,
+            "transaction_price": 2100.0,
+            "building_name": ""
+          },
+          {
+            "score": 65,
+            "date": "2026-05-22",
+            "location": "中央南路二段12之12號二樓",
+            "street": "中央南路二段",
+            "building_type": "大樓",
+            "area": 32.5,
+            "unit_price": 55.02,
+            "transaction_price": 1788.0,
+            "building_name": ""
+          },
+          {
+            "score": 65,
+            "date": "2026-06-27",
+            "location": "中和街493巷5弄17號五樓",
+            "street": "中和街",
+            "building_type": "公寓",
+            "area": 27.4,
+            "unit_price": 35.58,
+            "transaction_price": 975.0,
+            "building_name": ""
+          },
+          {
+            "score": 55,
+            "date": "2026-06-27",
+            "location": "大興街24巷6弄10號",
+            "street": "大興街",
+            "building_type": "公寓",
+            "area": 26.83,
+            "unit_price": 48.45,
+            "transaction_price": 1300.0,
+            "building_name": ""
+          },
+          {
+            "score": 55,
+            "date": "2026-06-30",
+            "location": "中央南路二段12之10號三樓",
+            "street": "中央南路二段",
+            "building_type": "大樓",
+            "area": 25.57,
+            "unit_price": 49.28,
+            "transaction_price": 1260.0,
+            "building_name": ""
+          },
+          {
+            "score": 55,
+            "date": "2026-06-21",
+            "location": "立農街一段36號",
+            "street": "立農街一段",
+            "building_type": "公寓",
+            "area": 25.18,
+            "unit_price": 106.43,
+            "transaction_price": 2680.0,
+            "building_name": ""
+          },
+          {
+            "score": 55,
+            "date": "2026-05-30",
+            "location": "致遠一路二段12巷15號三樓",
+            "street": "致遠一路二段",
+            "building_type": "公寓",
+            "area": 24.94,
+            "unit_price": 76.58,
+            "transaction_price": 1910.0,
+            "building_name": ""
+          },
+          {
+            "score": 45,
+            "date": "2026-07-01",
+            "location": "文化三路76號二樓",
+            "street": "文化三路",
+            "building_type": "華廈",
+            "area": 37.1,
+            "unit_price": 18.33,
+            "transaction_price": 680.0,
+            "building_name": ""
+          }
+        ]
+      }
+    }
+  ]
+}
