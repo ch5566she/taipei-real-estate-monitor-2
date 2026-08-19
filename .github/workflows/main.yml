@@ -48,7 +48,7 @@ jobs:
       - name: 執行房價資料蒐集
         run: python data_collector.py
       - name: 執行在售案源整理
-        run: python listing_collector.py
+        run: python listing_collector.py data/raw_listings.csv data/current_listings.csv
 
       # ----------------------------------------------------
       # 房價分析
