@@ -1215,6 +1215,10 @@ def build_report_data(records):
             ),
             }
 
+    # 第14階段：把市場機會排序一併寫入 JSON，
+    # 方便未來接 API、LINE、Email 或其他儀表板。
+    report["opportunity"] = build_opportunity_data(report)
+
     return report
 
 
@@ -2154,6 +2158,289 @@ def build_stage12_alerts(report):
 
 
 
+# ============================================================
+# 第14階段：市場機會雷達＋房仲開發行動建議
+# ============================================================
+
+def build_opportunity_data(report):
+    """
+    將既有路段監控資料轉成「市場機會分數」。
+
+    這是房仲內部的開發排序工具，不是單一物件估價。
+    分數綜合：交易活躍度、資料新鮮度、量能變化、價格修正、
+    相對行政區價格位置；並產生可直接執行的開發理由。
+    """
+    district_results = []
+    route_results = []
+
+    for district, data in report.get("districts", {}).items():
+        stats = data.get("stats", {})
+        routes = data.get("route_monitor", []) or []
+        trend = data.get("trend", {}) or {}
+
+        count = int(stats.get("count") or 0)
+        avg = to_float(stats.get("average_price"))
+        median_price = to_float(stats.get("median_price"))
+        recent_change = to_float(trend.get("change"))
+        confidence = trend.get("confidence", "低")
+
+        # 行政區機會分數：用於士林／北投比較，不代表房價高低。
+        volume_score = min(count / 30, 1.0) * 30
+        freshness_scores = []
+        for r in routes:
+            age = r.get("route_age_months")
+            if age is None:
+                freshness_scores.append(0)
+            elif age <= 1:
+                freshness_scores.append(20)
+            elif age <= 3:
+                freshness_scores.append(16)
+            elif age <= 6:
+                freshness_scores.append(10)
+            else:
+                freshness_scores.append(4)
+        freshness_score = max(freshness_scores, default=0)
+
+        if recent_change is None:
+            trend_score = 8
+        elif -10 <= recent_change <= 5:
+            trend_score = 20
+        elif recent_change < -10:
+            trend_score = 15
+        else:
+            trend_score = 12
+
+        active_route_count = sum(1 for r in routes if (r.get("latest_count") or 0) >= 2)
+        route_score = min(active_route_count / 5, 1.0) * 20
+        confidence_score = {"高": 10, "中": 7, "低": 4}.get(confidence, 4)
+
+        district_score = round(
+            min(30, volume_score)
+            + freshness_score
+            + trend_score
+            + route_score
+            + confidence_score,
+            1,
+        )
+
+        district_results.append({
+            "district": district,
+            "score": district_score,
+            "count": count,
+            "average": avg,
+            "median": median_price,
+            "recent_change": recent_change,
+            "confidence": confidence,
+            "active_routes": active_route_count,
+        })
+
+        for route in routes:
+            item = dict(route)
+            price_change = to_float(item.get("price_change"))
+            volume_change = to_float(item.get("volume_change"))
+            latest_count = int(item.get("latest_count") or 0)
+            gap = to_float(item.get("price_gap_vs_district_median"))
+            age = item.get("route_age_months")
+
+            activity = min((item.get("count") or 0) / 8, 1.0) * 30
+
+            if age is None:
+                freshness = 4
+            elif age <= 1:
+                freshness = 20
+            elif age <= 3:
+                freshness = 16
+            elif age <= 6:
+                freshness = 10
+            else:
+                freshness = 4
+
+            if volume_change is None or latest_count < 2:
+                volume_score = 5
+            elif volume_change >= 100:
+                volume_score = 15
+            elif volume_change >= 50:
+                volume_score = 12
+            elif volume_change >= 20:
+                volume_score = 9
+            elif volume_change >= 0:
+                volume_score = 7
+            else:
+                volume_score = 4
+
+            # 「價格修正＋仍有交易」視為房仲值得研究的開發訊號，
+            # 不是判定房價一定會反彈。
+            if price_change is None:
+                price_score = 6
+            elif -20 <= price_change <= -5 and latest_count >= 2:
+                price_score = 20
+            elif price_change < -20 and latest_count >= 2:
+                price_score = 14
+            elif 5 <= price_change <= 15 and latest_count >= 2:
+                price_score = 10
+            else:
+                price_score = 7
+
+            if gap is not None and gap <= -15:
+                relative_score = 15
+            elif gap is not None and gap <= -5:
+                relative_score = 11
+            elif gap is not None and gap <= 5:
+                relative_score = 8
+            else:
+                relative_score = 5
+
+            score = round(
+                activity + freshness + volume_score + price_score + relative_score,
+                1,
+            )
+
+            reasons = []
+            actions = []
+            if latest_count >= 2:
+                reasons.append(f"最新月份{latest_count}筆交易")
+            if volume_change is not None and volume_change >= 50:
+                reasons.append(f"量能{volume_change:+.0f}%")
+                actions.append("優先追蹤近期新增案源")
+            if price_change is not None and -20 <= price_change <= -5 and latest_count >= 2:
+                reasons.append(f"短期價格修正{price_change:+.1f}%")
+                actions.append("研究議價空間與同路段競品")
+            if gap is not None and gap <= -15:
+                reasons.append(f"低於行政區中位數{abs(gap):.1f}%")
+                actions.append("建立價格帶／低總價開發名單")
+            if age is not None and age <= 1:
+                reasons.append("資料新鮮")
+                actions.append("優先安排屋主／市場接觸")
+
+            if not reasons:
+                reasons.append("交易資料可追蹤")
+            if not actions:
+                actions.append("持續觀察，不急於下結論")
+
+            if score >= 75:
+                priority = "A｜立即追蹤"
+            elif score >= 60:
+                priority = "B｜本週追蹤"
+            else:
+                priority = "C｜一般觀察"
+
+            item.update({
+                "district": district,
+                "opportunity_score": score,
+                "priority": priority,
+                "opportunity_reasons": reasons,
+                "recommended_actions": actions,
+            })
+            route_results.append(item)
+
+    district_results.sort(key=lambda x: x["score"], reverse=True)
+    route_results.sort(key=lambda x: x["opportunity_score"], reverse=True)
+
+    return {
+        "districts": district_results,
+        "routes": route_results[:20],
+    }
+
+
+def build_stage14_opportunity_board(report):
+    """建立第14階段市場機會雷達 HTML。"""
+    opportunity = build_opportunity_data(report)
+    districts = opportunity.get("districts", [])
+    routes = opportunity.get("routes", [])
+
+    if not districts and not routes:
+        return """
+        <section class="stage14">
+            <h2>🎯 第14階段｜市場機會雷達</h2>
+            <div class="analysis-note">目前沒有足夠資料建立市場機會排序。</div>
+        </section>
+        """
+
+    district_cards = ""
+    for item in districts:
+        change = item.get("recent_change")
+        change_text = "—" if change is None else f"{change:+.2f}%"
+        district_cards += f"""
+        <div class="stage14-district-card">
+            <div class="stage14-card-title">{html_escape(item['district'])}</div>
+            <div class="stage14-score">{item['score']:.1f}<small>/100</small></div>
+            <div>交易量：{item['count']} 筆</div>
+            <div>近期價格變化：{change_text}</div>
+            <div>活躍路段：{item['active_routes']} 個</div>
+            <div>樣本可信度：{html_escape(item['confidence'])}</div>
+        </div>
+        """
+
+    route_rows = ""
+    for index, item in enumerate(routes[:10], start=1):
+        reasons = "；".join(item.get("opportunity_reasons", [])[:3])
+        actions = "；".join(item.get("recommended_actions", [])[:2])
+        score = item.get("opportunity_score", 0)
+        priority = item.get("priority", "C｜一般觀察")
+        badge_class = "stage14-a" if priority.startswith("A") else ("stage14-b" if priority.startswith("B") else "stage14-c")
+        route_rows += f"""
+        <tr>
+            <td><strong>{index}</strong></td>
+            <td>{html_escape(item.get('district'))}</td>
+            <td><strong>{html_escape(item.get('route'))}</strong></td>
+            <td>{item.get('count', 0)} 筆</td>
+            <td>{money(item.get('average'))}</td>
+            <td><strong class="stage14-score-text">{score:.1f}</strong></td>
+            <td><span class="stage14-badge {badge_class}">{html_escape(priority)}</span></td>
+            <td>{html_escape(reasons)}</td>
+            <td>{html_escape(actions)}</td>
+        </tr>
+        """
+
+    top = routes[0] if routes else None
+    if top:
+        action = (
+            f"今日第一優先：{top['district']} × {top['route']}，"
+            f"機會分數 {top['opportunity_score']:.1f}。"
+            "若實際案源條件吻合，建議先查同路段近期成交與在售競品，再安排開發。"
+        )
+    else:
+        action = "目前沒有足夠路段資料，先以行政區機會分數與熱門路段持續觀察。"
+
+    return f"""
+    <section class="stage14">
+        <h2>🎯 第14階段｜市場機會雷達＋房仲開發行動</h2>
+
+        <div class="stage14-action">
+            <strong>📞 今日行動：</strong>{html_escape(action)}
+        </div>
+
+        <h3>🏆 士林／北投市場機會分數</h3>
+        <div class="stage14-district-grid">
+            {district_cards}
+        </div>
+
+        <h3>🔥 今日房仲開發機會 Top 10</h3>
+        <div class="table-scroll">
+        <table class="stage14-table">
+            <tr>
+                <th>排名</th>
+                <th>行政區</th>
+                <th>路段</th>
+                <th>交易量</th>
+                <th>平均單價</th>
+                <th>機會分數</th>
+                <th>優先級</th>
+                <th>主要訊號</th>
+                <th>建議行動</th>
+            </tr>
+            {route_rows or '<tr><td colspan="9">目前沒有足夠路段資料。</td></tr>'}
+        </table>
+        </div>
+
+        <div class="stage14-note">
+            ⚠️ 機會分數是「房仲開發排序模型」，不是物件估價，也不是投資報酬率預測。
+            分數越高代表目前資料呈現較值得優先研究的路段；實際開發仍需核對屋齡、樓層、坪數、格局、車位、產品類型與個案成交條件。
+        </div>
+    </section>
+    """
+
+
 def build_trend_and_price_band_section(report):
     """建立多期間趨勢與價格帶分析區塊。"""
     sections = []
@@ -2353,6 +2640,7 @@ def create_html(report):
     decision_dashboard = build_decision_dashboard(report)
     trend_band_analysis = build_trend_and_price_band_section(report)
     stage12_alerts = build_stage12_alerts(report)
+    stage14_opportunity = build_stage14_opportunity_board(report)
 
     generated_at = report[
         "generated_at"
@@ -2979,6 +3267,104 @@ footer {{
 }}
 
 
+.stage14 {{
+    margin: 25px 0 30px 0;
+    padding: 24px;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.07);
+}}
+
+.stage14 h2 {{
+    margin-top: 0;
+}}
+
+.stage14-action {{
+    margin: 18px 0;
+    padding: 18px;
+    background: #eff6ff;
+    border-left: 5px solid #2563eb;
+    border-radius: 10px;
+    line-height: 1.8;
+}}
+
+.stage14-district-grid {{
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin: 18px 0 22px 0;
+}}
+
+.stage14-district-card {{
+    background: #f8fafc;
+    border: 1px solid #dbeafe;
+    border-radius: 10px;
+    padding: 18px;
+    line-height: 1.8;
+}}
+
+.stage14-card-title {{
+    font-size: 20px;
+    font-weight: 800;
+    color: #0f172a;
+}}
+
+.stage14-score {{
+    margin: 4px 0 8px 0;
+    font-size: 34px;
+    font-weight: 900;
+    color: #1d4ed8;
+}}
+
+.stage14-score small {{
+    font-size: 13px;
+    color: #64748b;
+    margin-left: 4px;
+}}
+
+.stage14-table td, .stage14-table th {{
+    vertical-align: top;
+}}
+
+.stage14-badge {{
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+}}
+
+.stage14-a {{
+    background: #fee2e2;
+    color: #b91c1c;
+}}
+
+.stage14-b {{
+    background: #fef3c7;
+    color: #92400e;
+}}
+
+.stage14-c {{
+    background: #e2e8f0;
+    color: #475569;
+}}
+
+.stage14-score-text {{
+    color: #1d4ed8;
+}}
+
+.stage14-note {{
+    margin-top: 18px;
+    padding: 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    color: #64748b;
+    line-height: 1.7;
+}}
+
+
 .stage12 {{
     margin: 25px 0 30px 0;
     padding: 24px;
@@ -3191,6 +3577,8 @@ footer {{
 
         {trend_band_analysis}
 
+        {stage14_opportunity}
+
         {stage12_alerts}
 
         {cards}
@@ -3201,7 +3589,7 @@ footer {{
 
 台北市士林區／北投區房市監控系統<br>
 
-第十三階段：房市監控＋多期間趨勢＋價格帶＋房仲實戰決策
+第十四階段：房市監控＋市場機會雷達＋房仲開發行動
 
 </footer>
 
@@ -3278,7 +3666,7 @@ def save_reports(report):
 
     print()
     print("=" * 70)
-    print("第九階段房市報告完成")
+    print("第十四階段房市報告完成")
     print("=" * 70)
 
     print()
