@@ -1,9 +1,11 @@
 {
-  "generated_at": "2026-08-19T22:21:40.377452+00:00",
+  "generated_at": "2026-08-19T22:41:41.763706+00:00",
   "stage": "第26階段：多層級比價＋房仲實戰定價引擎（A/B/C主要比價＋D行情參考＋E排除）",
   "summary": {
     "listing_count": 1,
-    "transaction_count": 48,
+    "transaction_count": 49,
+    "moi_transaction_count": 48,
+    "591_transaction_count": 1,
     "below_market": 0,
     "near_market": 0,
     "above_market": 0,
@@ -38,13 +40,13 @@
         "updated_at": "2026-08-20"
       },
       "comparison": {
-        "sample_count": 0,
-        "primary_sample_count": 0,
+        "sample_count": 1,
+        "primary_sample_count": 1,
         "reference_sample_count": 0,
-        "market_average": null,
-        "market_median": null,
-        "q1": null,
-        "q3": null,
+        "market_average": 85.78,
+        "market_median": 85.78,
+        "q1": 85.78,
+        "q3": 85.78,
         "reference_average": null,
         "reference_median": null,
         "listing_unit_price": 108.5,
@@ -54,7 +56,7 @@
         "market": {
           "level": "樣本不足",
           "emoji": "⚪",
-          "description": "目前僅有 0 筆有效可比成交，不足以進行正式市場溢價／折價判定"
+          "description": "目前僅有 1 筆有效可比成交，不足以進行正式市場溢價／折價判定"
         },
         "recommendations": {
           "seller_price_low": null,
@@ -76,15 +78,44 @@
           "confidence": "低",
           "note": "成交樣本不足3筆，不輸出精確議價價格。"
         },
-        "same_address_count": 0,
-        "same_unit_count": 0,
+        "same_address_count": 1,
+        "same_unit_count": 1,
         "tier_counts": {
-          "A": 0,
+          "A": 1,
           "B": 0,
           "C": 0,
           "D": 0
         },
-        "comparables": [],
+        "comparables": [
+          {
+            "score": 298,
+            "tier": "A",
+            "tier_reason": "同門牌＋同樓層",
+            "weight": 1.2,
+            "final_weight": 0.66,
+            "age_adjustment": 1.0,
+            "floor_adjustment": 1.0,
+            "area_adjustment": 0.9997,
+            "time_adjustment": 1.0,
+            "recency_weight": 0.55,
+            "reference_only": false,
+            "source": "591",
+            "match_level": "A｜同門牌＋同樓層",
+            "same_address": true,
+            "same_unit": true,
+            "date": "2020-07",
+            "location": "德行西路88號",
+            "street": "德行西路",
+            "building_type": "未知",
+            "area": 27.5,
+            "unit_price": 85.8,
+            "adjusted_unit_price": 85.78,
+            "transaction_price": 2008.0,
+            "parking_price": 150.0,
+            "parking_area": 5.9,
+            "building_name": ""
+          }
+        ],
         "reference_comparables": []
       }
     }
