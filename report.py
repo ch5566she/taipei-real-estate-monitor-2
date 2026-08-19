@@ -1219,6 +1219,9 @@ def build_report_data(records):
     # 方便未來接 API、LINE、Email 或其他儀表板。
     report["opportunity"] = build_opportunity_data(report)
 
+    # 第15階段：每日房仲開發 Top 10 行動名單
+    report["development_today"] = build_stage15_development_data(report)
+
     return report
 
 
@@ -2441,6 +2444,228 @@ def build_stage14_opportunity_board(report):
     """
 
 
+
+# ============================================================
+# 第15階段：每日房仲開發 Top 10 行動名單
+# ============================================================
+
+def build_stage15_development_data(report):
+    """
+    將第14階段的市場機會路段，進一步轉成「每日房仲開發行動名單」。
+
+    注意：這不是在售物件名單，也不是單一物件估價。
+    目前以成交路段資料建立優先順序；等後續接入在售資料後，
+    可再把路段優先級細化到個別物件。
+    """
+    opportunity = report.get("opportunity") or build_opportunity_data(report)
+    routes = opportunity.get("routes", []) or []
+    actions = []
+
+    for rank, item in enumerate(routes[:20], start=1):
+        score = float(item.get("opportunity_score") or 0)
+        district = item.get("district") or "—"
+        route = item.get("route") or "—"
+        count = int(item.get("count") or 0)
+        latest_count = int(item.get("latest_count") or 0)
+        price_change = to_float(item.get("price_change"))
+        volume_change = to_float(item.get("volume_change"))
+        gap = to_float(item.get("price_gap_vs_district_median"))
+        age = item.get("route_age_months")
+
+        reasons = []
+        action_list = []
+
+        if latest_count >= 3:
+            reasons.append(f"最新月份{latest_count}筆")
+            action_list.append("優先查近期成交與同路段在售")
+        elif latest_count >= 2:
+            reasons.append(f"最新月份{latest_count}筆")
+            action_list.append("建立路段屋主追蹤名單")
+
+        if volume_change is not None and volume_change >= 50:
+            reasons.append(f"交易量{volume_change:+.0f}%")
+            action_list.append("優先找新增案源")
+
+        if price_change is not None and price_change <= -10 and latest_count >= 2:
+            reasons.append(f"短期價格{price_change:+.1f}%")
+            action_list.append("檢查議價空間與價格修正個案")
+        elif price_change is not None and price_change >= 10 and latest_count >= 2:
+            reasons.append(f"短期價格{price_change:+.1f}%")
+            action_list.append("確認高價成交是否具產品條件差異")
+
+        if gap is not None and gap <= -10:
+            reasons.append(f"低於行政區中位數{abs(gap):.1f}%")
+            action_list.append("搜尋相對低價物件與屋主開發機會")
+
+        if age is not None and age <= 1:
+            reasons.append("最新資料")
+            action_list.append("列入今日優先電話／拜訪名單")
+
+        if not reasons:
+            reasons.append("路段交易資料可追蹤")
+        if not action_list:
+            action_list.append("本週持續追蹤成交與在售變化")
+
+        if score >= 75:
+            priority = "A｜今天處理"
+        elif score >= 60:
+            priority = "B｜本週處理"
+        else:
+            priority = "C｜持續觀察"
+
+        # 每日實戰順序：先查資料，再接觸屋主，最後建立追蹤。
+        workflow = [
+            "① 查近期成交",
+            "② 比對目前在售",
+            "③ 建立屋主名單",
+            "④ 設定回訪日期",
+        ]
+
+        actions.append({
+            "rank": rank,
+            "district": district,
+            "route": route,
+            "score": round(score, 1),
+            "priority": priority,
+            "transaction_count": count,
+            "latest_count": latest_count,
+            "average": item.get("average"),
+            "price_change": price_change,
+            "volume_change": volume_change,
+            "price_gap_vs_district_median": gap,
+            "reasons": reasons[:4],
+            "actions": action_list[:3],
+            "workflow": workflow,
+        })
+
+    # 每日執行優先順序：A → B → C，再以分數排序。
+    priority_order = {"A｜今天處理": 0, "B｜本週處理": 1, "C｜持續觀察": 2}
+    actions.sort(key=lambda x: (priority_order.get(x["priority"], 9), -x["score"]))
+    for i, item in enumerate(actions[:10], start=1):
+        item["daily_rank"] = i
+
+    top = actions[0] if actions else None
+    return {
+        "generated_for": "每日房仲開發行動名單",
+        "top10": actions[:10],
+        "today_focus": top,
+        "note": "目前為路段級開發名單；尚未串接個別在售物件資料。",
+    }
+
+
+def build_stage15_development_board(report):
+    """建立第15階段每日房仲開發 Top 10 HTML。"""
+    data = build_stage15_development_data(report)
+    top10 = data.get("top10", [])
+    focus = data.get("today_focus")
+
+    if not top10:
+        return """
+        <section class="stage15">
+            <h2>🎯 第15階段｜每日房仲開發 Top 10</h2>
+            <div class="analysis-note">目前沒有足夠路段資料建立每日開發名單。</div>
+        </section>
+        """
+
+    if focus:
+        focus_text = (
+            f"今日第一順位：{focus['district']} × {focus['route']}，"
+            f"{focus['priority']}，機會分數 {focus['score']:.1f}。"
+            "先完成近期成交與在售比對，再進入屋主開發。"
+        )
+    else:
+        focus_text = "目前沒有明確第一順位。"
+
+    rows = ""
+    for item in top10:
+        badge_class = (
+            "stage15-a" if item["priority"].startswith("A")
+            else "stage15-b" if item["priority"].startswith("B")
+            else "stage15-c"
+        )
+        reasons = "；".join(item["reasons"])
+        actions = "；".join(item["actions"])
+        workflow = " → ".join(item["workflow"])
+        price_change = "—" if item["price_change"] is None else f"{item['price_change']:+.1f}%"
+        volume_change = "—" if item["volume_change"] is None else f"{item['volume_change']:+.0f}%"
+        rows += f"""
+        <tr>
+            <td><strong>{item['daily_rank']}</strong></td>
+            <td>{html_escape(item['district'])}</td>
+            <td><strong>{html_escape(item['route'])}</strong></td>
+            <td><strong class="stage15-score">{item['score']:.1f}</strong></td>
+            <td><span class="stage15-badge {badge_class}">{html_escape(item['priority'])}</span></td>
+            <td>{item['latest_count']} 筆</td>
+            <td>{price_change}</td>
+            <td>{volume_change}</td>
+            <td>{html_escape(reasons)}</td>
+            <td>{html_escape(actions)}</td>
+            <td>{html_escape(workflow)}</td>
+        </tr>
+        """
+
+    return f"""
+    <section class="stage15">
+        <h2>🎯 第15階段｜每日房仲開發 Top 10</h2>
+
+        <div class="stage15-focus">
+            <strong>📞 今日第一通電話／第一個路段：</strong>{html_escape(focus_text)}
+        </div>
+
+        <div class="stage15-summary-grid">
+            <div class="stage15-summary-card">
+                <div class="stage15-summary-title">🔥 今日 A 級</div>
+                <strong>{sum(1 for x in top10 if x['priority'].startswith('A'))} 個</strong>
+                <small>今天優先處理</small>
+            </div>
+            <div class="stage15-summary-card">
+                <div class="stage15-summary-title">📋 今日 Top 10</div>
+                <strong>{len(top10)} 個</strong>
+                <small>路段級開發名單</small>
+            </div>
+            <div class="stage15-summary-card">
+                <div class="stage15-summary-title">🏠 執行方式</div>
+                <strong>4 步驟</strong>
+                <small>成交 → 在售 → 屋主 → 回訪</small>
+            </div>
+        </div>
+
+        <div class="table-scroll">
+        <table class="stage15-table">
+            <tr>
+                <th>今日排名</th>
+                <th>行政區</th>
+                <th>路段</th>
+                <th>機會分數</th>
+                <th>優先級</th>
+                <th>最新月量</th>
+                <th>價格變化</th>
+                <th>量能變化</th>
+                <th>主要訊號</th>
+                <th>建議行動</th>
+                <th>執行流程</th>
+            </tr>
+            {rows}
+        </table>
+        </div>
+
+        <div class="stage15-action-plan">
+            <h3>📝 今日實戰執行順序</h3>
+            <ol>
+                <li><strong>先查成交：</strong>確認 Top 10 路段最近成交的屋齡、樓層、坪數、格局、車位與產品類型。</li>
+                <li><strong>再查在售：</strong>找同路段目前開價明顯偏離近期成交的物件。</li>
+                <li><strong>建立屋主名單：</strong>優先處理 A 級路段，再處理 B 級。</li>
+                <li><strong>設定回訪：</strong>每個有效開發對象建立下一次聯繫日期，不讓名單只停在報表。</li>
+            </ol>
+        </div>
+
+        <div class="stage15-note">
+            ⚠️ 第15階段目前是「路段級開發優先順序」，不是個別在售物件名單，也不是屋主身份判定。
+            實際接觸前仍須核對物件條件與最新市場資訊。下一階段可把在售物件資料接進來，進一步產生「個別物件開發 Top 10」。
+        </div>
+    </section>
+    """
+
 def build_trend_and_price_band_section(report):
     """建立多期間趨勢與價格帶分析區塊。"""
     sections = []
@@ -2641,6 +2866,7 @@ def create_html(report):
     trend_band_analysis = build_trend_and_price_band_section(report)
     stage12_alerts = build_stage12_alerts(report)
     stage14_opportunity = build_stage14_opportunity_board(report)
+    stage15_development = build_stage15_development_board(report)
 
     generated_at = report[
         "generated_at"
@@ -3365,6 +3591,94 @@ footer {{
 }}
 
 
+
+
+.stage15 {{
+    margin: 25px 0 30px 0;
+    padding: 24px;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.07);
+}}
+
+.stage15 h2 {{ margin-top: 0; }}
+
+.stage15-focus {{
+    margin: 18px 0;
+    padding: 18px;
+    background: #fff7ed;
+    border-left: 5px solid #f97316;
+    border-radius: 10px;
+    line-height: 1.8;
+}}
+
+.stage15-summary-grid {{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin: 18px 0 22px 0;
+}}
+
+.stage15-summary-card {{
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px;
+    line-height: 1.7;
+}}
+
+.stage15-summary-title {{
+    color: #1d4ed8;
+    font-weight: 700;
+    margin-bottom: 5px;
+}}
+
+.stage15-summary-card strong {{
+    display: block;
+    font-size: 25px;
+    color: #0f172a;
+}}
+
+.stage15-summary-card small {{ color: #64748b; }}
+
+.stage15-table td, .stage15-table th {{ vertical-align: top; }}
+.stage15-score {{ color: #1d4ed8; }}
+
+.stage15-badge {{
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+}}
+
+.stage15-a {{ background: #fee2e2; color: #b91c1c; }}
+.stage15-b {{ background: #fef3c7; color: #92400e; }}
+.stage15-c {{ background: #e2e8f0; color: #475569; }}
+
+.stage15-action-plan {{
+    margin-top: 18px;
+    padding: 18px;
+    background: #eff6ff;
+    border-left: 5px solid #2563eb;
+    border-radius: 10px;
+    line-height: 1.8;
+}}
+
+.stage15-action-plan h3 {{ margin-top: 0; }}
+.stage15-action-plan li {{ margin-bottom: 8px; }}
+
+.stage15-note {{
+    margin-top: 18px;
+    padding: 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    color: #64748b;
+    line-height: 1.7;
+}}
+
 .stage12 {{
     margin: 25px 0 30px 0;
     padding: 24px;
@@ -3541,6 +3855,10 @@ footer {{
         grid-template-columns: 1fr;
     }}
 
+    .stage15-summary-grid {{
+        grid-template-columns: 1fr;
+    }}
+
 }}
 
 </style>
@@ -3579,6 +3897,8 @@ footer {{
 
         {stage14_opportunity}
 
+        {stage15_development}
+
         {stage12_alerts}
 
         {cards}
@@ -3589,7 +3909,7 @@ footer {{
 
 台北市士林區／北投區房市監控系統<br>
 
-第十四階段：房市監控＋市場機會雷達＋房仲開發行動
+第十五階段：房市監控＋市場機會雷達＋每日房仲開發 Top 10
 
 </footer>
 
@@ -3666,7 +3986,7 @@ def save_reports(report):
 
     print()
     print("=" * 70)
-    print("第十四階段房市報告完成")
+    print("第十五階段房市報告完成")
     print("=" * 70)
 
     print()
