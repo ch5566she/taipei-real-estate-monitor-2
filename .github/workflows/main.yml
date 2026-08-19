@@ -66,7 +66,7 @@ jobs:
         run: python listing_comparator.py
         
       # ----------------------------------------------------
-      # 第九階段
+      # 第21階段
       # 自動產生每日房市報告
       # ----------------------------------------------------
 
@@ -97,7 +97,7 @@ jobs:
 
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add data/current_listings.csv data/taipei_transactions.csv history/ reports/
+          git add data/current_listings.csv data/taipei_transactions.csv data/listing_comparison.json history/ reports/
 
           if git diff --cached --quiet; then
 
