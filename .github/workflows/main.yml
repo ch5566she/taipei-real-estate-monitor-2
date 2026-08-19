@@ -50,14 +50,6 @@ jobs:
 
       # ----------------------------------------------------
       # 在售案源整理
-      #
-      # 如果有合法取得的 data/raw_listings.csv
-      # 就進行整理。
-      #
-      # 如果沒有：
-      # 1. 刪除舊的 current_listings.csv
-      # 2. 刪除舊的 listing_comparison.json
-      # 3. 不使用昨天的舊資料冒充今天資料
       # ----------------------------------------------------
 
       - name: 執行在售案源整理
@@ -98,8 +90,10 @@ jobs:
       # ----------------------------------------------------
       # 在售物件 × 實價成交比價
       #
-      # 有 current_listings.csv → 執行
-      # 沒有 → 略過，不讓整個工作失敗
+      # 優先使用第26階段專業比價引擎
+      #
+      # 如果第26階段程式不存在，
+      # 才回退到舊版 listing_comparator.py
       # ----------------------------------------------------
 
       - name: 執行在售物件實價比價
@@ -110,10 +104,28 @@ jobs:
 
             echo "=============================================="
             echo "找到 data/current_listings.csv"
-            echo "開始執行在售物件 × 實價成交比價"
             echo "=============================================="
 
-            python listing_comparator.py
+            if [ -f "listing_comparator_stage26.py" ]; then
+
+              echo "使用第26階段房仲實戰定價引擎"
+              echo "檔案：listing_comparator_stage26.py"
+
+              python listing_comparator_stage26.py
+
+            elif [ -f "listing_comparator.py" ]; then
+
+              echo "找不到第26階段程式"
+              echo "回退使用 listing_comparator.py"
+
+              python listing_comparator.py
+
+            else
+
+              echo "找不到任何比價程式"
+              exit 1
+
+            fi
 
           else
 
@@ -123,8 +135,78 @@ jobs:
             echo "今日報告仍會繼續產生"
             echo "=============================================="
 
-            # 避免沿用前一天的比價結果
             rm -f data/listing_comparison.json
+
+          fi
+
+      # ----------------------------------------------------
+      # 檢查比價結果
+      # ----------------------------------------------------
+
+      - name: 檢查比價結果
+        shell: bash
+        run: |
+
+          if [ -f "data/listing_comparison.json" ]; then
+
+            echo "=============================================="
+            echo "listing_comparison.json 已成功產生"
+            echo "=============================================="
+
+            python - <<'PY'
+import json
+
+path = "data/listing_comparison.json"
+
+with open(path, "r", encoding="utf-8") as f:
+    data = json.load(f)
+
+print("比價階段：", data.get("stage"))
+
+summary = data.get("summary", {})
+
+print("在售物件數：", summary.get("listing_count"))
+print("成交資料數：", summary.get("transaction_count"))
+print("低於市場：", summary.get("below_market"))
+print("接近市場：", summary.get("near_market"))
+print("高於市場：", summary.get("above_market"))
+print("樣本不足：", summary.get("insufficient_sample"))
+
+for index, result in enumerate(data.get("results", []), start=1):
+
+    listing = result.get("listing", {})
+    comparison = result.get("comparison", {})
+    pricing = comparison.get("pricing_engine", {})
+
+    print("")
+    print("========== 物件", index, "==========")
+    print("地址：", listing.get("location"))
+    print("開價：", listing.get("total_price"))
+    print("主要可比樣本：", comparison.get("primary_sample_count"))
+    print("市場中位數：", comparison.get("market_median"))
+    print("市場判定：", comparison.get("market", {}).get("level"))
+    print("合理價：",
+          pricing.get("market_fair_price_low"),
+          "~",
+          pricing.get("market_fair_price_high"))
+    print("合理成交：",
+          pricing.get("reasonable_transaction_price_low"),
+          "~",
+          pricing.get("reasonable_transaction_price_high"))
+    print("買方建議：",
+          pricing.get("buyer_offer_low"),
+          "~",
+          pricing.get("buyer_offer_high"))
+    print("賣方底價：",
+          pricing.get("seller_floor_low"),
+          "~",
+          pricing.get("seller_floor_high"))
+    print("可信度：", pricing.get("confidence"))
+PY
+
+          else
+
+            echo "沒有產生 listing_comparison.json"
 
           fi
 
@@ -136,7 +218,7 @@ jobs:
         run: python report.py
 
       # ----------------------------------------------------
-      # 保存房價原始資料
+      # 保存房價資料
       # ----------------------------------------------------
 
       - name: 保存房價資料
@@ -149,7 +231,7 @@ jobs:
           retention-days: 7
 
       # ----------------------------------------------------
-      # 將資料與每日報告回存 GitHub
+      # 將資料與報告回存 GitHub
       # ----------------------------------------------------
 
       - name: 將資料與報告回存 GitHub
@@ -163,18 +245,9 @@ jobs:
           git config user.email \
             "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # ------------------------------------------------
-          # 加入官方實價資料、歷史資料、每日報告
-          # ------------------------------------------------
-
           git add data/taipei_transactions.csv
           git add history/
           git add reports/
-
-          # ------------------------------------------------
-          # current_listings.csv
-          # 存在就加入；不存在但以前有追蹤則加入刪除
-          # ------------------------------------------------
 
           if [ -f "data/current_listings.csv" ]; then
 
@@ -186,11 +259,6 @@ jobs:
 
           fi
 
-          # ------------------------------------------------
-          # listing_comparison.json
-          # 存在就加入；不存在但以前有追蹤則加入刪除
-          # ------------------------------------------------
-
           if [ -f "data/listing_comparison.json" ]; then
 
             git add data/listing_comparison.json
@@ -201,17 +269,13 @@ jobs:
 
           fi
 
-          # ------------------------------------------------
-          # 判斷是否有新的資料
-          # ------------------------------------------------
-
           if git diff --cached --quiet; then
 
             echo "沒有新的資料或報告需要 Commit"
 
           else
 
-            echo "準備提交每日房市資料與報告"
+            echo "準備提交每日房市資料與房市報告"
 
             git commit -m "自動更新每日房市資料與房市報告"
 
