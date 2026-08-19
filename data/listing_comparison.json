@@ -1,0 +1,83 @@
+{
+  "generated_at": "2026-08-19T21:30:43.192445+00:00",
+  "stage": "第21階段：在售物件 × 實價成交比價引擎（同地址＋車位校正）",
+  "summary": {
+    "listing_count": 1,
+    "transaction_count": 48,
+    "below_market": 0,
+    "near_market": 0,
+    "above_market": 1,
+    "insufficient_sample": 0
+  },
+  "results": [
+    {
+      "listing": {
+        "listing_id": "591-20260820-001",
+        "district": "士林區",
+        "location": "德行西路88號",
+        "street": "德行西路",
+        "title": "協和新天母捷運芝山商圈自住收租蘭雅國小明德國中家樂福德行公園",
+        "total_price": 2988.0,
+        "building_area": 27.54,
+        "unit_price": 108.5,
+        "age": 6.0,
+        "floor": 6.0,
+        "total_floors": 8.0,
+        "rooms": 1.0,
+        "halls": 1.0,
+        "bathrooms": 1.0,
+        "parking": "有車位",
+        "parking_price": null,
+        "parking_area": null,
+        "address_key": "德行西路88號",
+        "unit_key": "德行西路88號|6",
+        "source": "591",
+        "url": "",
+        "updated_at": "2026-08-20"
+      },
+      "comparison": {
+        "sample_count": 1,
+        "market_average": 19.88,
+        "market_median": 19.88,
+        "q1": 19.88,
+        "q3": 19.88,
+        "listing_unit_price": 108.5,
+        "raw_listing_unit_price": 108.5,
+        "premium_ratio": 4.4577,
+        "premium_percent": 445.77,
+        "market": {
+          "level": "高於市場",
+          "emoji": "🔴",
+          "description": "目前開價明顯高於附近成交行情"
+        },
+        "recommendations": {
+          "seller_price_low": 19.88,
+          "seller_price_high": 19.88,
+          "buyer_price_low": 18.29,
+          "buyer_price_high": 19.28,
+          "note": "成交樣本偏少，建議搭配現場屋況、樓層與車位條件判斷"
+        },
+        "same_address_count": 0,
+        "same_unit_count": 0,
+        "comparables": [
+          {
+            "score": 15,
+            "match_level": "同路段／相近坪數",
+            "same_address": false,
+            "same_unit": false,
+            "date": "2026-06-25",
+            "location": "葫蘆街135巷5弄3號二樓",
+            "street": "葫蘆街",
+            "building_type": "公寓",
+            "area": 24.15,
+            "unit_price": 19.88,
+            "transaction_price": 480.0,
+            "parking_price": 0.0,
+            "parking_area": 0.0,
+            "building_name": ""
+          }
+        ]
+      }
+    }
+  ]
+}

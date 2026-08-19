@@ -416,7 +416,7 @@ footer {
 
 <p>
 產生時間：
-2026-08-20 05:19:33
+2026-08-20 05:30:43
 </p>
 
 <p>
@@ -576,14 +576,158 @@ footer {
     
 
         
-        <section class="listing-comparison">
-            <h2>🏷️ 在售物件 × 實價成交比價決策板</h2>
-            <div class="listing-empty">
-                目前尚未找到 data/listing_comparison.json。
-                請先執行第20階段在售物件 × 實價成交比價引擎。
+    <section class="listing-comparison">
+        <div class="listing-section-title">
+            <div>
+                <h2>🏷️ 在售物件 × 實價成交比價決策板</h2>
+                <p>
+                    將目前在售開價與實價成交案例放在同一張決策板，
+                    協助快速判斷開價位置、買方可談區間與賣方合理價格帶。
+                </p>
             </div>
-        </section>
+        </div>
+
         
+        <div class="listing-summary-grid">
+            <div class="listing-summary-card">
+                <div class="listing-summary-label">在售物件</div>
+                <div class="listing-summary-value">1</div>
+                <div class="listing-summary-unit">筆</div>
+            </div>
+            <div class="listing-summary-card">
+                <div class="listing-summary-label">成交比較資料</div>
+                <div class="listing-summary-value">48</div>
+                <div class="listing-summary-unit">筆</div>
+            </div>
+            <div class="listing-summary-card listing-good">
+                <div class="listing-summary-label">低於市場</div>
+                <div class="listing-summary-value">0</div>
+                <div class="listing-summary-unit">筆</div>
+            </div>
+            <div class="listing-summary-card">
+                <div class="listing-summary-label">接近／合理偏高</div>
+                <div class="listing-summary-value">0</div>
+                <div class="listing-summary-unit">筆</div>
+            </div>
+            <div class="listing-summary-card listing-warning">
+                <div class="listing-summary-label">高於市場</div>
+                <div class="listing-summary-value">1</div>
+                <div class="listing-summary-unit">筆</div>
+            </div>
+            <div class="listing-summary-card">
+                <div class="listing-summary-label">樣本不足</div>
+                <div class="listing-summary-value">0</div>
+                <div class="listing-summary-unit">筆</div>
+            </div>
+        </div>
+        <div class="listing-meta">
+            比價資料產生時間（台灣時間）：2026-08-20 05:30:43
+        </div>
+    
+
+        <div class="listing-method-note">
+            <strong>比價邏輯：</strong>
+            本區直接使用第20階段產生的
+            <code>data/listing_comparison.json</code>，
+            不重新計算成交案例，確保與獨立比價引擎一致。
+        </div>
+
+        
+            <article class="listing-item">
+                <div class="listing-item-header">
+                    <div>
+                        <div class="listing-item-number">物件 #1</div>
+                        <h3>協和新天母捷運芝山商圈自住收租蘭雅國小明德國中家樂福德行公園</h3>
+                        <div class="listing-location">
+                            士林區｜德行西路88號
+                        </div>
+                    </div>
+                    
+        <div class="listing-market-badge">
+            <strong>🔴 高於市場</strong>
+            <span>目前開價明顯高於附近成交行情</span>
+        </div>
+    
+                </div>
+
+                <div class="listing-facts">
+                    <div>
+                        <span>建物坪數</span>
+                        <strong>27.54 坪</strong>
+                    </div>
+                    <div>
+                        <span>目前開價單價</span>
+                        <strong>108.50 萬／坪</strong>
+                    </div>
+                    <div>
+                        <span>目前總價</span>
+                        <strong>2,988.00 萬</strong>
+                    </div>
+                    <div>
+                        <span>比較樣本</span>
+                        <strong>1 筆</strong>
+                    </div>
+                </div>
+
+                <div class="listing-comparison-grid">
+                    <div class="listing-analysis-card">
+                        <h4>📊 成交市場基準</h4>
+                        <p>市場平均：<strong>19.88 萬／坪</strong></p>
+                        <p>市場中位數：<strong>19.88 萬／坪</strong></p>
+                        <p>Q1：<strong>19.88 萬／坪</strong></p>
+                        <p>Q3：<strong>19.88 萬／坪</strong></p>
+                        <p>開價溢／折價：<strong>+445.77%</strong></p>
+                    </div>
+
+                    <div class="listing-analysis-card">
+                        <h4>💰 房仲議價決策</h4>
+                        <p>買方建議價：
+                            <strong>18.29
+                            ～ 19.28 萬／坪</strong>
+                        </p>
+                        <p>賣方市場價格帶：
+                            <strong>19.88
+                            ～ 19.88 萬／坪</strong>
+                        </p>
+                        <p class="listing-note">
+                            ⚠️ 成交樣本偏少，建議搭配現場屋況、樓層與車位條件判斷
+                        </p>
+                    </div>
+                </div>
+
+                <h4 class="listing-comparable-title">🔎 主要實價比較案例</h4>
+                <div class="listing-table-wrap">
+                    <table class="listing-comparable-table">
+                        <tr>
+                            <th>#</th>
+                            <th>成交日期</th>
+                            <th>路段／位置</th>
+                            <th>坪數</th>
+                            <th>單價</th>
+                            <th>總價</th>
+                            <th>建物類型</th>
+                            <th>匹配分數</th>
+                        </tr>
+                        
+                <tr>
+                    <td>1</td>
+                    <td>2026-06-25</td>
+                    <td>葫蘆街</td>
+                    <td>24.15</td>
+                    <td><strong>19.88</strong></td>
+                    <td>480.00</td>
+                    <td>公寓</td>
+                    <td>15</td>
+                </tr>
+            
+                    </table>
+                </div>
+
+                <div class="listing-id">物件編號：591-20260820-001</div>
+            </article>
+        
+    </section>
+    
 
         
         <section class="district">
