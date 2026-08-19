@@ -35,7 +35,32 @@ from statistics import mean, median
 # 路徑設定
 # ============================================================
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+def find_repo_root():
+    """
+    找到真正包含 data/current_listings.csv 的專案根目錄。
+    GitHub Actions 有時會在巢狀工作目錄執行，不能只假設 __file__
+    的上一層就是 repository root。
+    """
+    start = os.path.abspath(os.path.dirname(__file__))
+    candidates = [start]
+
+    current = start
+    for _ in range(6):
+        parent = os.path.dirname(current)
+        if parent == current:
+            break
+        candidates.append(parent)
+        current = parent
+
+    for candidate in candidates:
+        if os.path.exists(os.path.join(candidate, "data", "current_listings.csv")):
+            return candidate
+
+    # 找不到時仍回傳程式所在目錄，讓後面的錯誤訊息保持清楚。
+    return start
+
+
+BASE_DIR = find_repo_root()
 
 LISTING_FILE = os.path.join(
     BASE_DIR,
@@ -1168,6 +1193,9 @@ def main():
     print("=" * 70)
 
     print()
+    print(f"專案根目錄：{BASE_DIR}")
+    print(f"在售資料：{LISTING_FILE}")
+    print(f"成交資料：{TRANSACTION_FILE}")
     print("讀取在售物件……")
 
     listings = load_listings()
