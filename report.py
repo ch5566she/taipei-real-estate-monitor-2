@@ -1332,7 +1332,168 @@ def create_html(report):
 
         cards += """
             </table>
+        """
 
+        # ============================================================
+        # 歷史房價趨勢圖
+        # ============================================================
+
+        valid_months = [
+            month
+            for month in data["months"]
+            if month.get("average") is not None
+        ]
+
+        if valid_months:
+            chart_width = 900
+            chart_height = 330
+            left = 70
+            right = 25
+            top = 35
+            bottom = 65
+
+            values = [float(month["average"]) for month in valid_months]
+            min_value = min(values)
+            max_value = max(values)
+
+            if max_value == min_value:
+                max_value += 1
+                min_value -= 1
+
+            plot_width = chart_width - left - right
+            plot_height = chart_height - top - bottom
+
+            points = []
+            circles = []
+            labels = []
+            grid_lines = []
+
+            for index, month in enumerate(valid_months):
+                if len(valid_months) == 1:
+                    x = left + plot_width / 2
+                else:
+                    x = left + plot_width * index / (len(valid_months) - 1)
+
+                y = (
+                    top
+                    + plot_height
+                    - (
+                        (float(month["average"]) - min_value)
+                        / (max_value - min_value)
+                    )
+                    * plot_height
+                )
+
+                points.append(f"{x:.1f},{y:.1f}")
+
+                circles.append(
+                    f"""
+                    <circle
+                        cx="{x:.1f}"
+                        cy="{y:.1f}"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="{x:.1f}"
+                        y="{max(y - 12, 18):.1f}"
+                        text-anchor="middle"
+                        class="price-value"
+                    >{float(month["average"]):.2f}</text>
+                    """
+                )
+
+                labels.append(
+                    f"""
+                    <text
+                        x="{x:.1f}"
+                        y="{chart_height - 25}"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >{html_escape(month["month"])}</text>
+                    """
+                )
+
+            for grid_index in range(5):
+                ratio = grid_index / 4
+                y = top + plot_height * ratio
+                value = max_value - (max_value - min_value) * ratio
+
+                grid_lines.append(
+                    f"""
+                    <line
+                        x1="{left}"
+                        y1="{y:.1f}"
+                        x2="{chart_width - right}"
+                        y2="{y:.1f}"
+                        class="chart-grid"
+                    />
+                    <text
+                        x="{left - 10}"
+                        y="{y + 4:.1f}"
+                        text-anchor="end"
+                        class="chart-axis-label"
+                    >{value:.2f}</text>
+                    """
+                )
+
+            history_chart = f"""
+            <div class="history-chart">
+                <h3>📈 歷史房價趨勢</h3>
+                <div class="chart-subtitle">
+                    平均單價（萬元／坪）
+                </div>
+
+                <div class="chart-container">
+                    <svg
+                        viewBox="0 0 {chart_width} {chart_height}"
+                        class="price-chart"
+                        role="img"
+                        aria-label="{html_escape(district)}歷史平均單價趨勢圖"
+                    >
+                        {"".join(grid_lines)}
+
+                        <line
+                            x1="{left}"
+                            y1="{top}"
+                            x2="{left}"
+                            y2="{chart_height - bottom}"
+                            class="chart-axis"
+                        />
+
+                        <line
+                            x1="{left}"
+                            y1="{chart_height - bottom}"
+                            x2="{chart_width - right}"
+                            y2="{chart_height - bottom}"
+                            class="chart-axis"
+                        />
+
+                        <polyline
+                            points="{" ".join(points)}"
+                            class="price-line"
+                            fill="none"
+                        />
+
+                        {"".join(circles)}
+                        {"".join(labels)}
+                    </svg>
+                </div>
+            </div>
+            """
+        else:
+            history_chart = """
+            <div class="history-chart">
+                <h3>📈 歷史房價趨勢</h3>
+                <div class="no-chart-data">
+                    目前沒有足夠的歷史月份資料可繪製趨勢圖。
+                </div>
+            </div>
+            """
+
+        cards += history_chart
+
+        cards += """
         </section>
         """
 
@@ -1491,6 +1652,85 @@ footer {{
     color: #64748b;
 
     padding: 30px;
+}}
+
+.history-chart {{
+    margin-top: 25px;
+    margin-bottom: 10px;
+}}
+
+.history-chart h3 {{
+    margin-bottom: 6px;
+}}
+
+.chart-subtitle {{
+    color: #64748b;
+    font-size: 13px;
+    margin-bottom: 10px;
+}}
+
+.chart-container {{
+    width: 100%;
+    overflow-x: auto;
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    padding: 12px;
+    box-sizing: border-box;
+}}
+
+.price-chart {{
+    width: 100%;
+    height: auto;
+    min-height: 280px;
+    display: block;
+}}
+
+.chart-grid {{
+    stroke: #e2e8f0;
+    stroke-width: 1;
+}}
+
+.chart-axis {{
+    stroke: #94a3b8;
+    stroke-width: 1.2;
+}}
+
+.price-line {{
+    stroke: #2563eb;
+    stroke-width: 4;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}}
+
+.price-point {{
+    fill: #ffffff;
+    stroke: #2563eb;
+    stroke-width: 3;
+}}
+
+.chart-label {{
+    fill: #475569;
+    font-size: 12px;
+}}
+
+.chart-axis-label {{
+    fill: #64748b;
+    font-size: 11px;
+}}
+
+.price-value {{
+    fill: #1d4ed8;
+    font-size: 11px;
+    font-weight: bold;
+}}
+
+.no-chart-data {{
+    background: #f8fafc;
+    color: #64748b;
+    padding: 18px;
+    border-radius: 10px;
+    text-align: center;
 }}
 
 @media(max-width:700px) {{
