@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
 
   schedule:
+    # UTC 01:00 = 台灣時間 09:00
     - cron: '0 1 * * *'
 
 permissions:
@@ -30,7 +31,6 @@ jobs:
 
       - name: 設定 Python
         uses: actions/setup-python@v5
-
         with:
           python-version: "3.12"
 
@@ -42,13 +42,51 @@ jobs:
         run: python main.py
 
       # ----------------------------------------------------
-      # 抓取房價資料
+      # 官方實價登錄資料
       # ----------------------------------------------------
 
       - name: 執行房價資料蒐集
         run: python data_collector.py
+
+      # ----------------------------------------------------
+      # 在售案源整理
+      #
+      # 如果有合法取得的 data/raw_listings.csv
+      # 就進行整理。
+      #
+      # 如果沒有：
+      # 1. 刪除舊的 current_listings.csv
+      # 2. 刪除舊的 listing_comparison.json
+      # 3. 不使用昨天的舊資料冒充今天資料
+      # ----------------------------------------------------
+
       - name: 執行在售案源整理
-        run: python listing_collector.py data/raw_listings.csv data/current_listings.csv
+        shell: bash
+        run: |
+
+          if [ -f "data/raw_listings.csv" ]; then
+
+            echo "=============================================="
+            echo "找到 data/raw_listings.csv"
+            echo "開始整理士林區／北投區在售物件"
+            echo "=============================================="
+
+            python listing_collector.py \
+              data/raw_listings.csv \
+              data/current_listings.csv
+
+          else
+
+            echo "=============================================="
+            echo "今日沒有 data/raw_listings.csv"
+            echo "略過在售案源整理"
+            echo "不使用舊資料冒充今日資料"
+            echo "=============================================="
+
+            rm -f data/current_listings.csv
+            rm -f data/listing_comparison.json
+
+          fi
 
       # ----------------------------------------------------
       # 房價分析
@@ -56,18 +94,42 @@ jobs:
 
       - name: 執行房價分析
         run: python analyzer.py
-        
+
       # ----------------------------------------------------
-      # 第20階段
       # 在售物件 × 實價成交比價
+      #
+      # 有 current_listings.csv → 執行
+      # 沒有 → 略過，不讓整個工作失敗
       # ----------------------------------------------------
 
       - name: 執行在售物件實價比價
-        run: python listing_comparator.py
-        
+        shell: bash
+        run: |
+
+          if [ -f "data/current_listings.csv" ]; then
+
+            echo "=============================================="
+            echo "找到 data/current_listings.csv"
+            echo "開始執行在售物件 × 實價成交比價"
+            echo "=============================================="
+
+            python listing_comparator.py
+
+          else
+
+            echo "=============================================="
+            echo "沒有 data/current_listings.csv"
+            echo "略過在售物件 × 實價比價"
+            echo "今日報告仍會繼續產生"
+            echo "=============================================="
+
+            # 避免沿用前一天的比價結果
+            rm -f data/listing_comparison.json
+
+          fi
+
       # ----------------------------------------------------
-      # 第21階段
-      # 自動產生每日房市報告
+      # 產生每日房市報告
       # ----------------------------------------------------
 
       - name: 產生每日房市報告
@@ -83,21 +145,65 @@ jobs:
         with:
           name: taipei-real-estate-data
           path: data/taipei_transactions.csv
+          if-no-files-found: error
           retention-days: 7
 
       # ----------------------------------------------------
-      # 將歷史資料、每日報告回存 GitHub
+      # 將資料與每日報告回存 GitHub
       # ----------------------------------------------------
 
       - name: 將資料與報告回存 GitHub
+
+        shell: bash
 
         run: |
 
           git config user.name "github-actions[bot]"
 
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add data/current_listings.csv data/taipei_transactions.csv data/listing_comparison.json history/ reports/
+          # ------------------------------------------------
+          # 加入官方實價資料、歷史資料、每日報告
+          # ------------------------------------------------
+
+          git add data/taipei_transactions.csv
+          git add history/
+          git add reports/
+
+          # ------------------------------------------------
+          # current_listings.csv
+          # 存在就加入；不存在但以前有追蹤則加入刪除
+          # ------------------------------------------------
+
+          if [ -f "data/current_listings.csv" ]; then
+
+            git add data/current_listings.csv
+
+          else
+
+            git add -u -- data/current_listings.csv 2>/dev/null || true
+
+          fi
+
+          # ------------------------------------------------
+          # listing_comparison.json
+          # 存在就加入；不存在但以前有追蹤則加入刪除
+          # ------------------------------------------------
+
+          if [ -f "data/listing_comparison.json" ]; then
+
+            git add data/listing_comparison.json
+
+          else
+
+            git add -u -- data/listing_comparison.json 2>/dev/null || true
+
+          fi
+
+          # ------------------------------------------------
+          # 判斷是否有新的資料
+          # ------------------------------------------------
 
           if git diff --cached --quiet; then
 
@@ -105,10 +211,14 @@ jobs:
 
           else
 
+            echo "準備提交每日房市資料與報告"
+
             git commit -m "自動更新每日房市資料與房市報告"
-            
+
             git pull --rebase origin main
-            
+
             git push
+
+            echo "GitHub 資料回存完成"
 
           fi
