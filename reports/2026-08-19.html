@@ -741,6 +741,18 @@ footer {
 .stage16 th, .stage16 td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: left; vertical-align: top; }
 .stage16 th { background: #eef2f7; }
 .stage16-note { margin-top: 16px; padding: 14px; background: #fff8ed; border-left: 4px solid #f59e0b; border-radius: 8px; line-height: 1.8; }
+.stage17 { margin-top: 28px; padding: 24px; background: #fff; border-radius: 18px; box-shadow: 0 4px 18px rgba(20,40,80,.08); }
+.stage17-focus { margin: 16px 0; padding: 18px; background: #effaf3; border-left: 5px solid #16a34a; border-radius: 10px; line-height: 1.9; }
+.stage17-summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 16px 0; }
+.stage17-summary-card { padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }
+.stage17-summary-title { color: #2563eb; font-weight: 700; margin-bottom: 8px; }
+.stage17-summary-card strong { display:block; font-size: 25px; color:#0f172a; margin-bottom:4px; }
+.stage17-summary-card small { color:#64748b; }
+.stage17-table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
+.stage17-table th, .stage17-table td { padding: 9px 7px; border-bottom: 1px solid #e5e7eb; text-align: left; vertical-align: top; }
+.stage17-table th { background:#eef2f7; }
+.stage17-note { margin-top:16px; padding:14px; background:#fff8ed; border-left:4px solid #f59e0b; border-radius:8px; line-height:1.8; }
+@media(max-width:900px) { .stage17-summary-grid { grid-template-columns:1fr; } }
 
 </style>
 
@@ -756,7 +768,7 @@ footer {
 
 <p>
 產生時間：
-2026-08-19 22:32:16
+2026-08-19 22:45:26
 </p>
 
 <p>
@@ -1649,6 +1661,20 @@ footer {
         </div>
     </section>
     
+
+        
+        <section class="stage17">
+            <h2>🔥 第17階段｜今日房仲在售物件開發雷達</h2>
+            <div class="stage17-focus">
+                <strong>目前尚未接入在售物件資料。</strong><br>
+                系統已保留完整介面；下一次只要把在售資料放入指定 CSV，便會自動產生「在售開價 × 成交中位價 × 路段熱度 × 開發分數 Top 10」。
+            </div>
+            <div class="stage17-note">
+                預設資料位置：data/current_listings.csv、data/on_sale.csv、data/591_listings.csv 或 data/listings.csv。<br>
+                ⚠️ 沒有在售資料時，本階段不捏造任何物件、不假設目前在售，也不判定屋主身份。
+            </div>
+        </section>
+        
 
         
     <section class="stage12">
@@ -2595,7 +2621,7 @@ footer {
 
 台北市士林區／北投區房市監控系統<br>
 
-第十六階段：房市監控＋市場機會雷達＋個別成交個案開發雷達
+第十七階段：房市監控＋成交個案雷達＋在售物件開發雷達
 
 </footer>
 
