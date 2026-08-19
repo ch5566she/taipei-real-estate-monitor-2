@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-19 12:19:37",
+  "generated_at": "2026-08-19 20:32:01",
   "districts": {
     "士林區": {
       "stats": {
@@ -19,8 +19,12 @@
       },
       "trend": {
         "direction": "下降",
-        "change": -19.07926829268294,
-        "confidence": "低"
+        "change": -13.4221445160617,
+        "confidence": "低",
+        "period": "最近3個月",
+        "latest_count": 2,
+        "window_count": 12,
+        "warning": "最近月份僅 2 筆交易，近期趨勢僅供參考，不宜直接解讀為整體房價走勢。"
       },
       "months": [
         {
@@ -74,6 +78,11 @@
           "median": 63.375,
           "heat": 126.75
         }
+      ],
+      "latest_transaction_date": [
+        2026,
+        7,
+        20
       ]
     },
     "北投區": {
@@ -94,8 +103,12 @@
       },
       "trend": {
         "direction": "下降",
-        "change": -64.13610363391656,
-        "confidence": "低"
+        "change": -32.49877659115115,
+        "confidence": "低",
+        "period": "最近3個月",
+        "latest_count": 4,
+        "window_count": 15,
+        "warning": "最近月份僅 4 筆交易，近期趨勢僅供參考，不宜直接解讀為整體房價走勢。"
       },
       "months": [
         {
@@ -233,6 +246,11 @@
           "median": 52.150000000000006,
           "heat": 104.30000000000001
         }
+      ],
+      "latest_transaction_date": [
+        2026,
+        7,
+        28
       ]
     }
   }
