@@ -574,6 +574,7 @@ def load_transactions():
 
             transaction = {
                 "id": row.get("_id"),
+                "source": "MOI",
                 "district": district,
                 "location": location,
                 "street": extract_street(location),
@@ -616,6 +617,62 @@ def load_transactions():
 
     return transactions
 
+
+
+# ============================================================
+# 591 歷史成交資料
+# ============================================================
+
+def load_591_transactions():
+    """讀取 data/591_transactions.csv，轉成與官方實價相同的內部格式。"""
+    path = find_file("591_transactions.csv")
+    if not path:
+        print("⚠️ 找不到 data/591_transactions.csv，將只使用官方實價資料。")
+        return []
+
+    transactions = []
+    with open(path, "r", encoding="utf-8-sig", newline="") as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            district = clean_text(row.get("district"))
+            if district not in {"士林區", "北投區"}:
+                continue
+
+            area = to_float(row.get("building_area"))
+            unit_price = to_float(row.get("unit_price"))
+            if area is None or area <= 0 or unit_price is None or unit_price <= 0:
+                continue
+
+            location = clean_text(row.get("address"))
+            if not location:
+                continue
+
+            transactions.append({
+                "id": clean_text(row.get("transaction_id")),
+                "source": "591",
+                "district": district,
+                "location": location,
+                "street": extract_street(location),
+                "building_type": normalize_building_type(row.get("building_type")),
+                "area": area,
+                "unit_price": unit_price,
+                "transaction_price": to_float(row.get("total_price")),
+                "date": clean_text(row.get("transaction_date")),
+                "age": to_float(row.get("age")),
+                "floor": clean_text(row.get("floor")),
+                "total_floors": clean_text(row.get("total_floors")),
+                "rooms": clean_text(row.get("rooms")),
+                "parking_price": to_float(row.get("parking_price")),
+                "parking_area": to_float(row.get("parking_area")),
+                "address_key": address_key(location),
+                "unit_key": exact_unit_key(location, row.get("floor")),
+                "case_f": "房地",
+                "building_name": clean_text(row.get("building_name")),
+                "remark": clean_text(row.get("remark")),
+            })
+
+    print(f"591 歷史成交：{len(transactions)} 筆")
+    return transactions
 
 
 # ============================================================
@@ -1460,6 +1517,7 @@ def build_comparable_rows(listing, rows, is_reference=False):
                 "time_adjustment": round_number(transaction_time_adjustment(transaction), 4),
                 "recency_weight": round_number(recency_weight(transaction), 4),
                 "reference_only": is_reference,
+                "source": transaction.get("source", "MOI"),
                 "match_level": (
                     "A｜同門牌＋同樓層"
                     if item["level"] == "A"
@@ -1553,6 +1611,12 @@ def build_report(
             "transaction_count": len(
                 transactions
             ),
+            "moi_transaction_count": sum(
+                1 for tx in transactions if tx.get("source") == "MOI"
+            ),
+            "591_transaction_count": sum(
+                1 for tx in transactions if tx.get("source") == "591"
+            ),
             "below_market": low_count,
             "near_market": near_count,
             "above_market": high_count,
@@ -1614,16 +1678,24 @@ def main():
     )
 
     print()
-    print("讀取實價成交資料……")
+    print("讀取官方實價成交資料……")
 
-    transactions = load_transactions()
+    moi_transactions = load_transactions()
+    for tx in moi_transactions:
+        tx["source"] = "MOI"
 
-    print(
-        f"有效住宅買賣成交："
-        f"{len(transactions)} 筆"
-    )
+    print(f"官方實價住宅買賣成交：{len(moi_transactions)} 筆")
 
     print()
+    print("讀取 591 歷史成交資料……")
+
+    transactions_591 = load_591_transactions()
+    print(f"591 歷史成交：{len(transactions_591)} 筆")
+
+    transactions = moi_transactions + transactions_591
+
+    print()
+    print(f"合併後有效成交：{len(transactions)} 筆")
     print("開始進行市場比價……")
 
     report = build_report(
@@ -1647,6 +1719,10 @@ def main():
     print(
         f"成交比較資料："
         f"{report['summary']['transaction_count']} 筆"
+    )
+    print(
+        f"其中官方實價：{report['summary']['moi_transaction_count']} 筆；"
+        f"591：{report['summary']['591_transaction_count']} 筆"
     )
 
     print(
