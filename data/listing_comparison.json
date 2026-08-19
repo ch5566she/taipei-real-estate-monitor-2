@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-19T21:51:38.373342+00:00",
-  "stage": "第24階段：在售物件 × 實價成交比價引擎（嚴格同類案例＋樣本門檻＋車位校正）",
+  "generated_at": "2026-08-19T21:58:20.106407+00:00",
+  "stage": "第26階段：多層級比價＋房仲實戰定價引擎（A/B/C主要比價＋D行情參考＋E排除）",
   "summary": {
     "listing_count": 1,
     "transaction_count": 48,
@@ -20,6 +20,8 @@
         "total_price": 2988.0,
         "building_area": 27.54,
         "unit_price": 108.5,
+        "building_type": "未知",
+        "building_name": "",
         "age": 6.0,
         "floor": 6.0,
         "total_floors": 8.0,
@@ -37,11 +39,16 @@
       },
       "comparison": {
         "sample_count": 0,
+        "primary_sample_count": 0,
+        "reference_sample_count": 0,
         "market_average": null,
         "market_median": null,
         "q1": null,
         "q3": null,
+        "reference_average": null,
+        "reference_median": null,
         "listing_unit_price": 108.5,
+        "raw_listing_unit_price": 108.5,
         "premium_ratio": null,
         "premium_percent": null,
         "market": {
@@ -56,9 +63,29 @@
           "buyer_price_high": null,
           "note": "成交樣本不足3筆，暫不提供精確議價價格；請優先補充同門牌、同社區或同路段成交案例。"
         },
+        "pricing_engine": {
+          "current_asking_price": 2988.0,
+          "market_fair_price_low": null,
+          "market_fair_price_high": null,
+          "reasonable_transaction_price_low": null,
+          "reasonable_transaction_price_high": null,
+          "buyer_offer_low": null,
+          "buyer_offer_high": null,
+          "seller_floor_low": null,
+          "seller_floor_high": null,
+          "confidence": "低",
+          "note": "成交樣本不足3筆，不輸出精確議價價格。"
+        },
         "same_address_count": 0,
         "same_unit_count": 0,
-        "comparables": []
+        "tier_counts": {
+          "A": 0,
+          "B": 0,
+          "C": 0,
+          "D": 0
+        },
+        "comparables": [],
+        "reference_comparables": []
       }
     }
   ]
