@@ -27,6 +27,7 @@ from statistics import mean, median
 
 INPUT_FILE = "data/taipei_transactions.csv"
 REPORT_DIR = "reports"
+LISTING_COMPARISON_FILE = "data/listing_comparison.json"
 
 TARGET_DISTRICTS = [
     "士林區",
@@ -1256,6 +1257,264 @@ def build_market_comparison(report):
     </section>
     """
 
+def load_listing_comparison():
+    """讀取第20階段「在售物件 × 實價成交比價」結果。"""
+    path = LISTING_COMPARISON_FILE
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+        return data if isinstance(data, dict) else None
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def format_percent(value):
+    if value is None:
+        return "—"
+    try:
+        return f"{float(value):+.2f}%"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def format_number(value, digits=2):
+    if value is None:
+        return "—"
+    try:
+        return f"{float(value):,.{digits}f}"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def market_badge(market):
+    market = market or {}
+    level = html_escape(market.get("level", "無法判斷"))
+    emoji = html_escape(market.get("emoji", "⚪"))
+    description = html_escape(market.get("description", ""))
+    return f"""
+        <div class="listing-market-badge">
+            <strong>{emoji} {level}</strong>
+            <span>{description}</span>
+        </div>
+    """
+
+
+def build_listing_comparison_section():
+    """第22階段：把第20階段 JSON 整合進每日 HTML 報告。"""
+    data = load_listing_comparison()
+
+    if not data:
+        return """
+        <section class="listing-comparison">
+            <h2>🏷️ 在售物件 × 實價成交比價決策板</h2>
+            <div class="listing-empty">
+                目前尚未找到 data/listing_comparison.json。
+                請先執行第20階段在售物件 × 實價成交比價引擎。
+            </div>
+        </section>
+        """
+
+    summary = data.get("summary", {}) or {}
+    results = data.get("results", []) or []
+
+    generated_at = data.get("generated_at")
+    generated_text = "—"
+    if generated_at:
+        try:
+            generated_dt = datetime.fromisoformat(str(generated_at))
+            generated_dt = generated_dt.astimezone(ZoneInfo("Asia/Taipei"))
+            generated_text = generated_dt.strftime("%Y-%m-%d %H:%M:%S")
+        except (ValueError, TypeError):
+            generated_text = str(generated_at)
+
+    summary_cards = f"""
+        <div class="listing-summary-grid">
+            <div class="listing-summary-card">
+                <div class="listing-summary-label">在售物件</div>
+                <div class="listing-summary-value">{summary.get("listing_count", 0):,}</div>
+                <div class="listing-summary-unit">筆</div>
+            </div>
+            <div class="listing-summary-card">
+                <div class="listing-summary-label">成交比較資料</div>
+                <div class="listing-summary-value">{summary.get("transaction_count", 0):,}</div>
+                <div class="listing-summary-unit">筆</div>
+            </div>
+            <div class="listing-summary-card listing-good">
+                <div class="listing-summary-label">低於市場</div>
+                <div class="listing-summary-value">{summary.get("below_market", 0):,}</div>
+                <div class="listing-summary-unit">筆</div>
+            </div>
+            <div class="listing-summary-card">
+                <div class="listing-summary-label">接近／合理偏高</div>
+                <div class="listing-summary-value">{summary.get("near_market", 0):,}</div>
+                <div class="listing-summary-unit">筆</div>
+            </div>
+            <div class="listing-summary-card listing-warning">
+                <div class="listing-summary-label">高於市場</div>
+                <div class="listing-summary-value">{summary.get("above_market", 0):,}</div>
+                <div class="listing-summary-unit">筆</div>
+            </div>
+            <div class="listing-summary-card">
+                <div class="listing-summary-label">樣本不足</div>
+                <div class="listing-summary-value">{summary.get("insufficient_sample", 0):,}</div>
+                <div class="listing-summary-unit">筆</div>
+            </div>
+        </div>
+        <div class="listing-meta">
+            比價資料產生時間（台灣時間）：{html_escape(generated_text)}
+        </div>
+    """
+
+    item_blocks = []
+
+    for index, result in enumerate(results, start=1):
+        listing = result.get("listing", {}) or {}
+        comparison = result.get("comparison", {}) or {}
+        market = comparison.get("market", {}) or {}
+        recommendations = comparison.get("recommendations", {}) or {}
+        comparables = comparison.get("comparables", []) or []
+
+        listing_id = listing.get("listing_id") or f"物件 {index}"
+        district = listing.get("district", "")
+        title = listing.get("title") or "未命名在售物件"
+        location = listing.get("location") or listing.get("street") or "未提供位置"
+
+        comparable_rows = ""
+        for comp_index, comparable in enumerate(comparables, start=1):
+            comparable_rows += f"""
+                <tr>
+                    <td>{comp_index}</td>
+                    <td>{html_escape(comparable.get("date") or "—")}</td>
+                    <td>{html_escape(comparable.get("street") or comparable.get("location") or "—")}</td>
+                    <td>{format_number(comparable.get("area"))}</td>
+                    <td><strong>{format_number(comparable.get("unit_price"))}</strong></td>
+                    <td>{format_number(comparable.get("transaction_price"))}</td>
+                    <td>{html_escape(comparable.get("building_type") or "—")}</td>
+                    <td>{format_number(comparable.get("score"), 0)}</td>
+                </tr>
+            """
+
+        if not comparable_rows:
+            comparable_rows = """
+                <tr>
+                    <td colspan="8" class="listing-no-data">沒有可顯示的成交比較案例。</td>
+                </tr>
+            """
+
+        item_blocks.append(f"""
+            <article class="listing-item">
+                <div class="listing-item-header">
+                    <div>
+                        <div class="listing-item-number">物件 #{index}</div>
+                        <h3>{html_escape(title)}</h3>
+                        <div class="listing-location">
+                            {html_escape(district)}｜{html_escape(location)}
+                        </div>
+                    </div>
+                    {market_badge(market)}
+                </div>
+
+                <div class="listing-facts">
+                    <div>
+                        <span>建物坪數</span>
+                        <strong>{format_number(listing.get("building_area"))} 坪</strong>
+                    </div>
+                    <div>
+                        <span>目前開價單價</span>
+                        <strong>{format_number(listing.get("unit_price"))} 萬／坪</strong>
+                    </div>
+                    <div>
+                        <span>目前總價</span>
+                        <strong>{format_number(listing.get("total_price"))} 萬</strong>
+                    </div>
+                    <div>
+                        <span>比較樣本</span>
+                        <strong>{comparison.get("sample_count", 0):,} 筆</strong>
+                    </div>
+                </div>
+
+                <div class="listing-comparison-grid">
+                    <div class="listing-analysis-card">
+                        <h4>📊 成交市場基準</h4>
+                        <p>市場平均：<strong>{format_number(comparison.get("market_average"))} 萬／坪</strong></p>
+                        <p>市場中位數：<strong>{format_number(comparison.get("market_median"))} 萬／坪</strong></p>
+                        <p>Q1：<strong>{format_number(comparison.get("q1"))} 萬／坪</strong></p>
+                        <p>Q3：<strong>{format_number(comparison.get("q3"))} 萬／坪</strong></p>
+                        <p>開價溢／折價：<strong>{format_percent(comparison.get("premium_percent"))}</strong></p>
+                    </div>
+
+                    <div class="listing-analysis-card">
+                        <h4>💰 房仲議價決策</h4>
+                        <p>買方建議價：
+                            <strong>{format_number(recommendations.get("buyer_price_low"))}
+                            ～ {format_number(recommendations.get("buyer_price_high"))} 萬／坪</strong>
+                        </p>
+                        <p>賣方市場價格帶：
+                            <strong>{format_number(recommendations.get("seller_price_low"))}
+                            ～ {format_number(recommendations.get("seller_price_high"))} 萬／坪</strong>
+                        </p>
+                        <p class="listing-note">
+                            ⚠️ {html_escape(recommendations.get("note") or "—")}
+                        </p>
+                    </div>
+                </div>
+
+                <h4 class="listing-comparable-title">🔎 主要實價比較案例</h4>
+                <div class="listing-table-wrap">
+                    <table class="listing-comparable-table">
+                        <tr>
+                            <th>#</th>
+                            <th>成交日期</th>
+                            <th>路段／位置</th>
+                            <th>坪數</th>
+                            <th>單價</th>
+                            <th>總價</th>
+                            <th>建物類型</th>
+                            <th>匹配分數</th>
+                        </tr>
+                        {comparable_rows}
+                    </table>
+                </div>
+
+                <div class="listing-id">物件編號：{html_escape(listing_id)}</div>
+            </article>
+        """)
+
+    item_html = "".join(item_blocks) if item_blocks else """
+        <div class="listing-empty">
+            比價 JSON 已成功讀取，但目前沒有在售物件分析結果。
+        </div>
+    """
+
+    return f"""
+    <section class="listing-comparison">
+        <div class="listing-section-title">
+            <div>
+                <h2>🏷️ 在售物件 × 實價成交比價決策板</h2>
+                <p>
+                    將目前在售開價與實價成交案例放在同一張決策板，
+                    協助快速判斷開價位置、買方可談區間與賣方合理價格帶。
+                </p>
+            </div>
+        </div>
+
+        {summary_cards}
+
+        <div class="listing-method-note">
+            <strong>比價邏輯：</strong>
+            本區直接使用第20階段產生的
+            <code>data/listing_comparison.json</code>，
+            不重新計算成交案例，確保與獨立比價引擎一致。
+        </div>
+
+        {item_html}
+    </section>
+    """
+
+
+
 def create_html(report):
     # ============================================================
     # 第12-1階段：士林／北投市場總覽
@@ -1328,6 +1587,7 @@ def create_html(report):
         </section>
     """
     market_analysis = build_market_comparison(report)
+    listing_comparison_html = build_listing_comparison_section()
 
     generated_at = report[
         "generated_at"
@@ -1816,6 +2076,129 @@ footer {{
 .history-value {{ fill: #1d4ed8; font-size: 11px; font-weight: bold; }}
 .no-chart-data {{ background: #f8fafc; color: #64748b; padding: 18px; border-radius: 10px; text-align: center; }}
 
+
+.listing-comparison {{
+    margin: 25px 0 30px 0;
+    padding: 24px;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+}}
+
+.listing-section-title h2 {{ margin: 0 0 8px 0; }}
+.listing-section-title p {{ margin: 0 0 18px 0; color: #64748b; line-height: 1.8; }}
+
+.listing-summary-grid {{
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+    margin: 18px 0;
+}}
+
+.listing-summary-card {{
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px;
+}}
+
+.listing-summary-card.listing-good {{ background: #f0fdf4; border-color: #bbf7d0; }}
+.listing-summary-card.listing-warning {{ background: #fff7ed; border-color: #fed7aa; }}
+.listing-summary-label {{ color: #64748b; font-size: 13px; }}
+.listing-summary-value {{ margin-top: 5px; font-size: 23px; font-weight: 700; }}
+.listing-summary-unit {{ color: #64748b; font-size: 12px; }}
+.listing-meta {{ color: #64748b; font-size: 12px; margin: 4px 0 18px 0; }}
+
+.listing-method-note {{
+    margin: 16px 0 20px 0;
+    padding: 14px 16px;
+    background: #eff6ff;
+    border-left: 4px solid #2563eb;
+    border-radius: 8px;
+    color: #475569;
+    line-height: 1.7;
+}}
+
+.listing-method-note code {{
+    background: #e2e8f0;
+    padding: 2px 5px;
+    border-radius: 4px;
+}}
+
+.listing-item {{
+    margin-top: 22px;
+    padding: 20px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #ffffff;
+}}
+
+.listing-item-header {{
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+}}
+
+.listing-item-number {{ color: #2563eb; font-size: 12px; font-weight: 700; margin-bottom: 4px; }}
+.listing-item-header h3 {{ margin: 0 0 6px 0; }}
+.listing-location {{ color: #64748b; font-size: 13px; }}
+
+.listing-market-badge {{
+    min-width: 180px;
+    padding: 12px 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+}}
+
+.listing-market-badge strong {{ display: block; margin-bottom: 4px; }}
+.listing-market-badge span {{ display: block; color: #64748b; font-size: 12px; line-height: 1.5; }}
+
+.listing-facts {{
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 18px 0;
+}}
+
+.listing-facts > div {{ padding: 12px; background: #f8fafc; border-radius: 8px; }}
+.listing-facts span {{ display: block; color: #64748b; font-size: 12px; margin-bottom: 5px; }}
+.listing-facts strong {{ font-size: 17px; }}
+
+.listing-comparison-grid {{
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin: 16px 0;
+}}
+
+.listing-analysis-card {{
+    padding: 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    line-height: 1.7;
+}}
+
+.listing-analysis-card h4 {{ margin: 0 0 8px 0; }}
+.listing-analysis-card p {{ margin: 5px 0; }}
+.listing-note {{ color: #64748b; font-size: 13px; }}
+.listing-comparable-title {{ margin: 20px 0 10px 0; }}
+.listing-table-wrap {{ width: 100%; overflow-x: auto; }}
+.listing-comparable-table {{ min-width: 850px; }}
+.listing-comparable-table th, .listing-comparable-table td {{ white-space: nowrap; }}
+.listing-no-data {{ text-align: center; color: #64748b; padding: 18px; }}
+.listing-id {{ margin-top: 10px; color: #94a3b8; font-size: 11px; }}
+
+.listing-empty {{
+    padding: 18px;
+    background: #f8fafc;
+    color: #64748b;
+    border-radius: 10px;
+    line-height: 1.7;
+}}
+
 @media(max-width:700px) {{
 
     .district {{
@@ -1824,6 +2207,27 @@ footer {{
 
     table {{
         font-size: 13px;
+    }}
+
+    .listing-summary-grid {{
+        grid-template-columns: repeat(2, 1fr);
+    }}
+
+    .listing-item-header {{
+        display: block;
+    }}
+
+    .listing-market-badge {{
+        margin-top: 12px;
+        min-width: 0;
+    }}
+
+    .listing-facts {{
+        grid-template-columns: repeat(2, 1fr);
+    }}
+
+    .listing-comparison-grid {{
+        grid-template-columns: 1fr;
     }}
 
 }}
@@ -1857,6 +2261,8 @@ footer {{
         {summary}
 
         {market_analysis}
+
+        {listing_comparison_html}
 
         {cards}
 
