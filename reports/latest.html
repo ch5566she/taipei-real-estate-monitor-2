@@ -155,6 +155,97 @@ footer {
     padding: 30px;
 }
 
+.market-analysis {
+    margin: 25px 0;
+    padding: 24px;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+}
+
+.market-analysis h2 {
+    margin-top: 0;
+}
+
+.market-analysis h3 {
+    margin-top: 0;
+}
+
+.comparison-table {
+    margin-bottom: 18px;
+}
+
+.analysis-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin: 18px 0;
+}
+
+.analysis-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px;
+    line-height: 1.8;
+}
+
+.analysis-title {
+    color: #1d4ed8;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.judgment-box {
+    margin-top: 18px;
+    padding: 20px;
+    background: #eef6ff;
+    border-left: 5px solid #2563eb;
+    border-radius: 10px;
+    line-height: 1.9;
+}
+
+.judgment-box p {
+    margin: 8px 0;
+}
+
+.analysis-note {
+    color: #64748b;
+    font-size: 13px;
+}
+
+.hot-route-box {
+    margin-top: 18px;
+    padding: 18px;
+    background: #fff7ed;
+    border-left: 5px solid #f97316;
+    border-radius: 10px;
+}
+
+.hot-route-box ul {
+    margin: 8px 0 0 20px;
+    padding: 0;
+}
+
+.history-chart {
+    display: block;
+    width: 100%;
+    margin: 28px 0 10px 0;
+}
+
+.history-chart h3 { margin: 0 0 8px 0; }
+.chart-subtitle { color: #64748b; font-size: 13px; margin-bottom: 10px; }
+.history-chart-box { display: block; width: 100%; overflow-x: auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; box-sizing: border-box; }
+.history-svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.history-grid { stroke: #e2e8f0; stroke-width: 1; }
+.history-axis { stroke: #94a3b8; stroke-width: 1.2; }
+.history-line { stroke: #2563eb; stroke-width: 4; stroke-linejoin: round; stroke-linecap: round; }
+.history-point { fill: #ffffff; stroke: #2563eb; stroke-width: 3; }
+.history-label { fill: #475569; font-size: 12px; }
+.history-axis-label { fill: #64748b; font-size: 11px; }
+.history-value { fill: #1d4ed8; font-size: 11px; font-weight: bold; }
+.no-chart-data { background: #f8fafc; color: #64748b; padding: 18px; border-radius: 10px; text-align: center; }
+
 @media(max-width:700px) {
 
     .district {
@@ -181,14 +272,166 @@ footer {
 
 <p>
 產生時間：
-2026-08-19 17:21:41
+2026-08-20 01:30:04
+</p>
+
+<p>
+房價資料截至：
+2026年7月28日
 </p>
 
 </header>
 
-<div class="container">
+    <div class="container">
 
+        
+        <section class="summary">
 
+            <h2>🏠 士林區／北投區市場總覽</h2>
+
+            <table>
+
+                <tr>
+                    <th>行政區</th>
+                    <th>交易量</th>
+                    <th>平均單價</th>
+                    <th>中位數</th>
+                    <th>市場方向</th>
+                    <th>近期變化</th>
+                </tr>
+
+                
+            <tr>
+                <td>
+                    <strong>士林區</strong>
+                </td>
+
+                <td>
+                    17 筆
+                </td>
+
+                <td>
+                    78.73
+                    萬／坪
+                </td>
+
+                <td>
+                    78.93
+                    萬／坪
+                </td>
+
+                <td>
+                    下降
+                </td>
+
+                <td>
+                    -13.42%
+                </td>
+            </tr>
+        
+            <tr>
+                <td>
+                    <strong>北投區</strong>
+                </td>
+
+                <td>
+                    31 筆
+                </td>
+
+                <td>
+                    85.18
+                    萬／坪
+                </td>
+
+                <td>
+                    106.43
+                    萬／坪
+                </td>
+
+                <td>
+                    下降
+                </td>
+
+                <td>
+                    -32.50%
+                </td>
+            </tr>
+        
+
+            </table>
+
+        </section>
+    
+
+        
+    <section class="market-analysis">
+        <h2>📊 士林／北投市場比較分析</h2>
+
+        <table class="comparison-table">
+            <tr>
+                <th>行政區</th>
+                <th>交易量</th>
+                <th>平均單價</th>
+                <th>中位數</th>
+                <th>近期方向</th>
+                <th>近3月變化</th>
+                <th>可信度</th>
+            </tr>
+            
+            <tr>
+                <td><strong>士林區</strong></td>
+                <td>17 筆</td>
+                <td>78.73 萬／坪</td>
+                <td>78.93 萬／坪</td>
+                <td>下降</td>
+                <td>-13.42%</td>
+                <td>低</td>
+            </tr>
+        
+            <tr>
+                <td><strong>北投區</strong></td>
+                <td>31 筆</td>
+                <td>85.18 萬／坪</td>
+                <td>106.43 萬／坪</td>
+                <td>下降</td>
+                <td>-32.50%</td>
+                <td>低</td>
+            </tr>
+        
+        </table>
+
+        <div class="analysis-grid">
+            <div class="analysis-card">
+                <div class="analysis-title">📌 交易量比較</div>
+                <div>北投區目前有效交易量較高，共 31 筆。</div>
+            </div>
+            <div class="analysis-card">
+                <div class="analysis-title">💰 價格比較</div>
+                <div>北投區目前平均單價較高，約 85.18 萬／坪。</div>
+            </div>
+            <div class="analysis-card">
+                <div class="analysis-title">📈 近期變化</div>
+                <div>近期變化以北投區較弱，最近3個月約 -32.50%。</div>
+            </div>
+        </div>
+
+        <div class="judgment-box">
+            <h3>🤖 房仲市場判讀</h3>
+            <p><strong>整體判讀：</strong>北投區目前有效交易量較高，共 31 筆。北投區目前平均單價較高，約 85.18 萬／坪。近期變化以北投區較弱，最近3個月約 -32.50%。</p>
+            <p><strong>賣方策略：</strong>近期價格偏弱，賣方定價宜以實價與同類型競品為基準，避免明顯高於市場造成銷售週期拉長。</p>
+            <p><strong>買方策略：</strong>買方可優先鎖定價格已修正、但地段與產品條件仍佳的物件，並保留合理議價空間。</p>
+            <p><strong>開發重點：</strong>優先追蹤交易量較高的行政區與熱門路段，並針對近期價格修正明顯、但交易仍活躍的產品建立待開發名單。</p>
+            <p class="analysis-note">⚠️ 士林區；北投區近期樣本可信度偏低，趨勢應搭配路段與住宅類型交叉判讀。</p>
+        </div>
+
+        <div class="hot-route-box">
+            <h3>🔥 各區目前最活躍路段</h3>
+            <ul><li>士林區：中山北路五段，4 筆，平均 86.12 萬／坪</li><li>北投區：北科路，11 筆，平均 112.46 萬／坪</li></ul>
+        </div>
+    </section>
+    
+
+        
         <section class="district">
 
             <h2>士林區</h2>
@@ -255,7 +498,7 @@ footer {
                 <p>
                     期間價格變化：
                     <strong>
-                        -19.08%
+                        -13.42%
                     </strong>
                 </p>
 
@@ -417,7 +660,22 @@ footer {
                 </tr>
             
             </table>
-
+        
+    <div class="history-chart">
+        <h3>📈 歷史房價趨勢</h3>
+        <div class="chart-subtitle">士林區｜平均單價（萬元／坪）</div>
+        <div class="history-chart-box">
+            <svg class="history-svg" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet" role="img" aria-label="士林區歷史平均單價趨勢圖">
+                <line x1="75" y1="45.00" x2="965" y2="45.00" class="history-grid"></line><text x="63" y="49.00" text-anchor="end" class="history-axis-label">89.33</text><line x1="75" y1="110.00" x2="965" y2="110.00" class="history-grid"></line><text x="63" y="114.00" text-anchor="end" class="history-axis-label">83.58</text><line x1="75" y1="175.00" x2="965" y2="175.00" class="history-grid"></line><text x="63" y="179.00" text-anchor="end" class="history-axis-label">77.84</text><line x1="75" y1="240.00" x2="965" y2="240.00" class="history-grid"></line><text x="63" y="244.00" text-anchor="end" class="history-axis-label">72.10</text><line x1="75" y1="305.00" x2="965" y2="305.00" class="history-grid"></line><text x="63" y="309.00" text-anchor="end" class="history-axis-label">66.35</text>
+                <line x1="75" y1="45" x2="75" y2="305" class="history-axis"></line>
+                <line x1="75" y1="305" x2="965" y2="305" class="history-axis"></line>
+                <polyline points="75.00,127.91 297.50,45.00 520.00,221.30 742.50,174.53 965.00,305.00" class="history-line" fill="none"></polyline>
+                <circle cx="75.00" cy="127.91" r="6" class="history-point"></circle><text x="75.00" y="113.91" text-anchor="middle" class="history-value">82.00</text><circle cx="297.50" cy="45.00" r="6" class="history-point"></circle><text x="297.50" y="31.00" text-anchor="middle" class="history-value">89.33</text><circle cx="520.00" cy="221.30" r="6" class="history-point"></circle><text x="520.00" y="207.30" text-anchor="middle" class="history-value">73.75</text><circle cx="742.50" cy="174.53" r="6" class="history-point"></circle><text x="742.50" y="160.53" text-anchor="middle" class="history-value">77.88</text><circle cx="965.00" cy="305.00" r="6" class="history-point"></circle><text x="965.00" y="291.00" text-anchor="middle" class="history-value">66.35</text>
+                <text x="75.00" y="350" text-anchor="middle" class="history-label">2020-12</text><text x="297.50" y="350" text-anchor="middle" class="history-label">2026-04</text><text x="520.00" y="350" text-anchor="middle" class="history-label">2026-05</text><text x="742.50" y="350" text-anchor="middle" class="history-label">2026-06</text><text x="965.00" y="350" text-anchor="middle" class="history-label">2026-07</text>
+            </svg>
+        </div>
+    </div>
+    
         </section>
         
         <section class="district">
@@ -486,7 +744,7 @@ footer {
                 <p>
                     期間價格變化：
                     <strong>
-                        -64.14%
+                        -32.50%
                     </strong>
                 </p>
 
@@ -860,17 +1118,32 @@ footer {
                 </tr>
             
             </table>
-
+        
+    <div class="history-chart">
+        <h3>📈 歷史房價趨勢</h3>
+        <div class="chart-subtitle">北投區｜平均單價（萬元／坪）</div>
+        <div class="history-chart-box">
+            <svg class="history-svg" viewBox="0 0 1000 380" preserveAspectRatio="xMidYMid meet" role="img" aria-label="北投區歷史平均單價趨勢圖">
+                <line x1="75" y1="45.00" x2="965" y2="45.00" class="history-grid"></line><text x="63" y="49.00" text-anchor="end" class="history-axis-label">122.08</text><line x1="75" y1="110.00" x2="965" y2="110.00" class="history-grid"></line><text x="63" y="114.00" text-anchor="end" class="history-axis-label">102.22</text><line x1="75" y1="175.00" x2="965" y2="175.00" class="history-grid"></line><text x="63" y="179.00" text-anchor="end" class="history-axis-label">82.36</text><line x1="75" y1="240.00" x2="965" y2="240.00" class="history-grid"></line><text x="63" y="244.00" text-anchor="end" class="history-axis-label">62.50</text><line x1="75" y1="305.00" x2="965" y2="305.00" class="history-grid"></line><text x="63" y="309.00" text-anchor="end" class="history-axis-label">42.64</text>
+                <line x1="75" y1="45" x2="75" y2="305" class="history-axis"></line>
+                <line x1="75" y1="305" x2="965" y2="305" class="history-axis"></line>
+                <polyline points="75.00,55.47 138.57,88.10 202.14,88.07 265.71,90.59 329.29,83.88 392.86,67.09 456.43,77.92 520.00,51.28 583.57,47.01 647.14,45.00 710.71,52.72 774.29,269.54 837.86,234.04 901.43,239.98 965.00,305.00" class="history-line" fill="none"></polyline>
+                <circle cx="75.00" cy="55.47" r="6" class="history-point"></circle><text x="75.00" y="41.47" text-anchor="middle" class="history-value">118.88</text><circle cx="138.57" cy="88.10" r="6" class="history-point"></circle><text x="138.57" y="74.10" text-anchor="middle" class="history-value">108.91</text><circle cx="202.14" cy="88.07" r="6" class="history-point"></circle><text x="202.14" y="74.07" text-anchor="middle" class="history-value">108.92</text><circle cx="265.71" cy="90.59" r="6" class="history-point"></circle><text x="265.71" y="76.59" text-anchor="middle" class="history-value">108.15</text><circle cx="329.29" cy="83.88" r="6" class="history-point"></circle><text x="329.29" y="69.88" text-anchor="middle" class="history-value">110.20</text><circle cx="392.86" cy="67.09" r="6" class="history-point"></circle><text x="392.86" y="53.09" text-anchor="middle" class="history-value">115.33</text><circle cx="456.43" cy="77.92" r="6" class="history-point"></circle><text x="456.43" y="63.92" text-anchor="middle" class="history-value">112.02</text><circle cx="520.00" cy="51.28" r="6" class="history-point"></circle><text x="520.00" y="37.28" text-anchor="middle" class="history-value">120.16</text><circle cx="583.57" cy="47.01" r="6" class="history-point"></circle><text x="583.57" y="33.01" text-anchor="middle" class="history-value">121.47</text><circle cx="647.14" cy="45.00" r="6" class="history-point"></circle><text x="647.14" y="31.00" text-anchor="middle" class="history-value">122.08</text><circle cx="710.71" cy="52.72" r="6" class="history-point"></circle><text x="710.71" y="38.72" text-anchor="middle" class="history-value">119.72</text><circle cx="774.29" cy="269.54" r="6" class="history-point"></circle><text x="774.29" y="255.54" text-anchor="middle" class="history-value">53.47</text><circle cx="837.86" cy="234.04" r="6" class="history-point"></circle><text x="837.86" y="220.04" text-anchor="middle" class="history-value">64.32</text><circle cx="901.43" cy="239.98" r="6" class="history-point"></circle><text x="901.43" y="225.98" text-anchor="middle" class="history-value">62.50</text><circle cx="965.00" cy="305.00" r="6" class="history-point"></circle><text x="965.00" y="291.00" text-anchor="middle" class="history-value">42.63</text>
+                <text x="75.00" y="350" text-anchor="middle" class="history-label">2022-03</text><text x="138.57" y="350" text-anchor="middle" class="history-label">2023-11</text><text x="202.14" y="350" text-anchor="middle" class="history-label">2023-12</text><text x="265.71" y="350" text-anchor="middle" class="history-label">2024-02</text><text x="329.29" y="350" text-anchor="middle" class="history-label">2024-03</text><text x="392.86" y="350" text-anchor="middle" class="history-label">2024-04</text><text x="456.43" y="350" text-anchor="middle" class="history-label">2024-05</text><text x="520.00" y="350" text-anchor="middle" class="history-label">2024-06</text><text x="583.57" y="350" text-anchor="middle" class="history-label">2024-12</text><text x="647.14" y="350" text-anchor="middle" class="history-label">2025-02</text><text x="710.71" y="350" text-anchor="middle" class="history-label">2025-04</text><text x="774.29" y="350" text-anchor="middle" class="history-label">2026-04</text><text x="837.86" y="350" text-anchor="middle" class="history-label">2026-05</text><text x="901.43" y="350" text-anchor="middle" class="history-label">2026-06</text><text x="965.00" y="350" text-anchor="middle" class="history-label">2026-07</text>
+            </svg>
+        </div>
+    </div>
+    
         </section>
         
 
-</div>
+    </div>
 
 <footer>
 
 台北市士林區／北投區房市監控系統<br>
 
-第九階段：每日房市專業報告
+第十階段：每日房市專業報告＋市場判讀
 
 </footer>
 
