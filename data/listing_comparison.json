@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-19T22:50:37.493854+00:00",
-  "stage": "第27階段：591成交資料庫＋時間衰減＋多層級比價＋房仲實戰定價引擎（A/B/C主要比價＋D行情參考＋E排除）",
+  "generated_at": "2026-08-19T22:57:56.543553+00:00",
+  "stage": "第28階段：591成交資料庫＋時間衰減＋多層級比價＋樣本不足第二層行情推估＋房仲實戰定價引擎（A/B/C主要比價＋D行情參考＋E排除）",
   "summary": {
     "listing_count": 1,
     "transaction_count": 49,
@@ -66,18 +66,44 @@
           "buyer_price_high": null,
           "note": "成交樣本不足3筆，暫不提供精確議價價格；請優先補充同門牌、同社區或同路段成交案例。"
         },
-        "pricing_engine": {
-          "current_asking_price": 2988.0,
-          "market_fair_price_low": null,
-          "market_fair_price_high": null,
-          "reasonable_transaction_price_low": null,
-          "reasonable_transaction_price_high": null,
-          "buyer_offer_low": null,
-          "buyer_offer_high": null,
-          "seller_floor_low": null,
-          "seller_floor_high": null,
+        "fallback_recommendations": {
+          "enabled": true,
+          "seller_price_low": 2423.74,
+          "seller_price_high": 2551.31,
+          "buyer_price_low": 2296.18,
+          "buyer_price_high": 2423.74,
           "confidence": "低",
-          "note": "成交樣本不足3筆，不輸出精確議價價格。"
+          "basis": "正式可比樣本不足，改採現有同門牌／同棟／同社區／同路段資料",
+          "sample_count": 1,
+          "note": "這是樣本不足時的第二層議價參考，不取代正式市場判定。"
+        },
+        "pricing_engine": {
+          "enabled": true,
+          "current_asking_price": 2988.0,
+          "market_reference_price_low": 2423.8,
+          "market_reference_price_high": 2678.82,
+          "reasonable_transaction_price_low": 2487.52,
+          "reasonable_transaction_price_high": 2615.09,
+          "buyer_offer_low": 2296.18,
+          "buyer_offer_high": 2423.74,
+          "seller_floor_low": 2423.74,
+          "seller_floor_high": 2551.31,
+          "confidence": "低",
+          "basis": "正式可比樣本不足，改採現有同門牌／同棟／同社區／同路段資料",
+          "sample_count": 1,
+          "note": "第二層行情推估僅供房仲實戰參考；仍應搭配屋況、採光、棟別、車位型式、裝潢及屋主急迫性。"
+        },
+        "fallback_estimate": {
+          "enabled": true,
+          "tier": "A/B/C",
+          "basis": "正式可比樣本不足，改採現有同門牌／同棟／同社區／同路段資料",
+          "sample_count": 1,
+          "unit_price_low": 88.01,
+          "unit_price_median": 92.64,
+          "unit_price_high": 97.27,
+          "average_unit_price": 92.64,
+          "confidence": "低",
+          "note": "此為第二層行情參考，不等同正式市場判定；正式「高於／低於市場」仍要求至少3筆A/B/C主要可比成交。 本次依正式可比樣本不足，改採現有同門牌／同棟／同社區／同路段資料推估，共1筆。"
         },
         "same_address_count": 1,
         "same_unit_count": 1,
