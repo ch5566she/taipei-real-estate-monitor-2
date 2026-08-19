@@ -1135,6 +1135,231 @@ def route_monitor_analysis(items, district_stats):
     return result
 
 
+
+
+# ============================================================
+# 第16階段：個別成交個案開發雷達
+# ============================================================
+
+def _record_label(item):
+    row = item.get("row", {}) or {}
+    build_type = str(row.get("buitype") or "").strip()
+    case_f = str(row.get("case_f") or "").strip()
+    elevator = str(row.get("elevator") or "").strip()
+    area = item.get("area")
+    area_text = f"{area:.1f}坪" if area is not None else "坪數未知"
+    parts = [x for x in [build_type, case_f, elevator, area_text] if x]
+    return "／".join(parts[:4])
+
+
+def build_stage16_property_radar(records, report):
+    """
+    以「已成交個案」建立個別物件級開發線索。
+
+    重要限制：目前資料來源是實價成交資料，不是在售物件資料，
+    因此本階段不宣稱知道屋主、目前開價或物件是否仍在市場上。
+    用途是找出「值得沿著該成交個案去找同路段／同類型屋主」的線索。
+    """
+    route_stats = {}
+    route_scores = {}
+    for district, data in report.get("districts", {}).items():
+        for route in data.get("route_monitor", []) or []:
+            key = (district, route.get("route") or "未知路段")
+            route_stats[key] = route
+            route_scores[key] = float(route.get("development_score") or 0)
+
+    # 先建立每個路段的成交單價集合，計算個案相對於同路段中位數的偏離。
+    route_prices = {}
+    for item in records:
+        key = (item.get("district"), item.get("route") or "未知路段")
+        route_prices.setdefault(key, []).append(float(item.get("unit_price") or 0))
+
+    dated = [x for x in records if x.get("date")]
+    latest_key = max((x["date"][0], x["date"][1], x["date"][2]) for x in dated) if dated else None
+
+    candidates = []
+    for item in records:
+        date_value = item.get("date")
+        if not date_value:
+            continue
+
+        district = item.get("district") or ""
+        route = item.get("route") or "未知路段"
+        unit_price = float(item.get("unit_price") or 0)
+        area = item.get("area")
+        if unit_price <= 0:
+            continue
+
+        key = (district, route)
+        peer_prices = route_prices.get(key, [])
+        peer_median = median(peer_prices) if peer_prices else None
+        peer_avg = mean(peer_prices) if peer_prices else None
+        district_median = None
+        district_data = report.get("districts", {}).get(district, {})
+        if district_data:
+            district_median = to_float(district_data.get("stats", {}).get("median_price"))
+
+        peer_gap = None
+        if peer_median:
+            peer_gap = (unit_price - peer_median) / peer_median * 100
+
+        district_gap = None
+        if district_median:
+            district_gap = (unit_price - district_median) / district_median * 100
+
+        if latest_key:
+            months_old = (latest_key[0] - date_value[0]) * 12 + (latest_key[1] - date_value[1])
+        else:
+            months_old = 99
+
+        recency_score = 30 if months_old <= 1 else 24 if months_old <= 3 else 18 if months_old <= 6 else 10 if months_old <= 12 else 3
+        route_score = min(route_scores.get(key, 0) / 60 * 20, 20)
+
+        deviation_score = 0
+        if peer_gap is not None:
+            abs_gap = abs(peer_gap)
+            if abs_gap >= 25:
+                deviation_score = 25
+            elif abs_gap >= 15:
+                deviation_score = 21
+            elif abs_gap >= 10:
+                deviation_score = 17
+            elif abs_gap >= 5:
+                deviation_score = 12
+            else:
+                deviation_score = 7
+
+        district_score = 0
+        if district_gap is not None:
+            if district_gap <= -20 or district_gap >= 20:
+                district_score = 15
+            elif abs(district_gap) >= 10:
+                district_score = 11
+            else:
+                district_score = 6
+
+        completeness_score = 10 if area and item.get("total_price") else 5
+        score = round(min(100, recency_score + route_score + deviation_score + district_score + completeness_score), 1)
+
+        reasons = []
+        actions = []
+        if months_old <= 3:
+            reasons.append("近3個月成交")
+            actions.append("優先查同路段目前在售")
+        elif months_old <= 12:
+            reasons.append("近12個月內成交")
+        if route_scores.get(key, 0) >= 50:
+            reasons.append(f"路段開發分數{route_scores[key]:.1f}")
+            actions.append("沿成交路段建立同類屋主名單")
+        if peer_gap is not None and abs(peer_gap) >= 15:
+            reasons.append(f"與路段中位價偏離{peer_gap:+.1f}%")
+            actions.append("檢查同類型產品價格差異")
+        if district_gap is not None and abs(district_gap) >= 20:
+            reasons.append(f"與行政區中位價偏離{district_gap:+.1f}%")
+            actions.append("確認屋齡、樓層、格局與車位差異")
+        if not reasons:
+            reasons.append("具備可追蹤成交紀錄")
+        if not actions:
+            actions.append("列入同類物件開發追蹤")
+
+        priority = "A｜優先開發" if score >= 75 else "B｜本週追蹤" if score >= 60 else "C｜持續觀察"
+        row = item.get("row", {}) or {}
+        location = str(row.get("location") or "").strip()
+        transaction_id = str(row.get("_id") or "").strip()
+        candidates.append({
+            "district": district,
+            "route": route,
+            "transaction_id": transaction_id,
+            "transaction_date": f"{date_value[0]:04d}-{date_value[1]:02d}-{date_value[2]:02d}",
+            "location": location,
+            "unit_price": unit_price,
+            "total_price": item.get("total_price"),
+            "area": area,
+            "product": _record_label(item),
+            "peer_median": peer_median,
+            "district_median": district_median,
+            "peer_gap": peer_gap,
+            "district_gap": district_gap,
+            "route_score": route_scores.get(key, 0),
+            "score": score,
+            "priority": priority,
+            "reasons": reasons[:4],
+            "actions": actions[:3],
+            "note": "成交個案開發線索；不代表目前仍在售，也不代表可識別屋主。",
+        })
+
+    candidates.sort(key=lambda x: (x["score"], x["transaction_date"]), reverse=True)
+    for idx, item in enumerate(candidates[:10], 1):
+        item["rank"] = idx
+
+    return {
+        "generated_for": "個別成交個案開發雷達 Top 10",
+        "top10": candidates[:10],
+        "note": "目前以實價成交個案作為同路段／同類型屋主開發線索；尚未接入591等在售物件資料，因此不判定物件目前是否在售。",
+    }
+
+
+def build_stage16_property_board(report):
+    data = report.get("property_radar") or {}
+    top10 = data.get("top10", []) or []
+    if not top10:
+        return """
+        <section class="stage16">
+            <h2>🏠 第16階段｜個別成交個案開發雷達</h2>
+            <div class="analysis-note">目前沒有足夠成交個案資料建立個別開發線索。</div>
+        </section>
+        """
+
+    rows = []
+    for x in top10:
+        peer = "—" if x.get("peer_median") is None else f"{x['peer_median']:.2f}"
+        gap = "—" if x.get("peer_gap") is None else f"{x['peer_gap']:+.1f}%"
+        total = "—" if x.get("total_price") is None else f"{x['total_price']:,.0f}"
+        reasons = "；".join(x.get("reasons", [])[:2])
+        rows.append(f"""
+        <tr>
+            <td><strong>#{x['rank']}</strong></td>
+            <td>{html_escape(x['district'])}</td>
+            <td>{html_escape(x['route'])}</td>
+            <td>{html_escape(x['transaction_date'])}</td>
+            <td>{x['unit_price']:.2f}</td>
+            <td>{peer}</td>
+            <td>{gap}</td>
+            <td><strong>{x['score']:.1f}</strong><br><small>{html_escape(x['priority'])}</small></td>
+            <td>{html_escape(reasons)}</td>
+        </tr>
+        """)
+
+    focus = top10[0]
+    focus_reason = "；".join(focus.get("reasons", [])[:3])
+    focus_action = "；".join(focus.get("actions", [])[:3])
+    return f"""
+    <section class="stage16">
+        <h2>🏠 第16階段｜個別成交個案開發雷達 Top 10</h2>
+        <div class="stage16-focus">
+            <strong>🎯 今日第一優先線索：</strong>
+            {html_escape(focus['district'])} × {html_escape(focus['route'])}｜
+            {html_escape(focus['transaction_date'])}｜
+            開發分數 <strong>{focus['score']:.1f}</strong>｜{html_escape(focus['priority'])}<br>
+            <strong>為什麼：</strong>{html_escape(focus_reason)}<br>
+            <strong>建議：</strong>{html_escape(focus_action)}
+        </div>
+        <table>
+            <tr>
+                <th>排名</th><th>行政區</th><th>路段</th><th>成交日期</th>
+                <th>成交單價</th><th>路段中位價</th><th>價格偏離</th>
+                <th>開發分數</th><th>開發訊號</th>
+            </tr>
+            {''.join(rows)}
+        </table>
+        <div class="stage16-note">
+            ⚠️ 本階段是「成交個案→同類屋主開發線索」，不是目前在售物件名單，也不是屋主身份判定。
+            若要做到真正的「目前哪一間房子最值得開發」，下一步必須接入在售物件資料，再比對成交行情與目前開價。
+        </div>
+    </section>
+    """
+
+
 # ============================================================
 # 建立 JSON 資料
 # ============================================================
@@ -1221,6 +1446,9 @@ def build_report_data(records):
 
     # 第15階段：每日房仲開發 Top 10 行動名單
     report["development_today"] = build_stage15_development_data(report)
+
+    # 第16階段：個別成交個案開發雷達
+    report["property_radar"] = build_stage16_property_radar(records, report)
 
     return report
 
@@ -2867,6 +3095,7 @@ def create_html(report):
     stage12_alerts = build_stage12_alerts(report)
     stage14_opportunity = build_stage14_opportunity_board(report)
     stage15_development = build_stage15_development_board(report)
+    stage16_property = build_stage16_property_board(report)
 
     generated_at = report[
         "generated_at"
@@ -3861,6 +4090,14 @@ footer {{
 
 }}
 
+
+.stage16 {{ margin-top: 28px; padding: 24px; background: #fff; border-radius: 18px; box-shadow: 0 4px 18px rgba(20,40,80,.08); }}
+.stage16-focus {{ margin: 16px 0; padding: 18px; background: #eef6ff; border-left: 5px solid #2563eb; border-radius: 10px; line-height: 1.9; }}
+.stage16 table {{ width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 14px; }}
+.stage16 th, .stage16 td {{ padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: left; vertical-align: top; }}
+.stage16 th {{ background: #eef2f7; }}
+.stage16-note {{ margin-top: 16px; padding: 14px; background: #fff8ed; border-left: 4px solid #f59e0b; border-radius: 8px; line-height: 1.8; }}
+
 </style>
 
 </head>
@@ -3899,6 +4136,8 @@ footer {{
 
         {stage15_development}
 
+        {stage16_property}
+
         {stage12_alerts}
 
         {cards}
@@ -3909,7 +4148,7 @@ footer {{
 
 台北市士林區／北投區房市監控系統<br>
 
-第十五階段：房市監控＋市場機會雷達＋每日房仲開發 Top 10
+第十六階段：房市監控＋市場機會雷達＋個別成交個案開發雷達
 
 </footer>
 
