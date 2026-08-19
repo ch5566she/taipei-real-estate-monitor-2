@@ -17,7 +17,6 @@ import json
 import os
 import re
 from datetime import datetime
-from zoneinfo import ZoneInfo
 from statistics import mean, median
 
 
@@ -75,109 +74,34 @@ def parse_date(value):
     if not text:
         return None
 
-    # 去除日期後面的時間
     text = text.split(" ")[0]
 
-    # ========================================================
     # 純數字日期
-    #
-    # 民國：
-    # 1150528 → 2026-05-28
-    #
-    # 西元：
-    # 20260528 → 2026-05-28
-    # ========================================================
+    # 民國：1150528 -> 2026-05-28
+    # 西元：20260528 -> 2026-05-28
+    compact = re.sub(r"[^0-9]", "", text)
 
-    compact = re.sub(
-        r"[^0-9]",
-        "",
-        text
-    )
-
-    # --------------------------------------------------------
-    # 民國 7 碼
-    # 例如：1150528
-    # --------------------------------------------------------
-
-    if re.fullmatch(
-        r"\d{7}",
-        compact
-    ):
-
-        year = (
-            int(compact[:3])
-            + 1911
-        )
-
-        month = int(
-            compact[3:5]
-        )
-
-        day = int(
-            compact[5:7]
-        )
+    if re.fullmatch(r"\d{7}", compact):
+        year = int(compact[:3]) + 1911
+        month = int(compact[3:5])
+        day = int(compact[5:7])
 
         try:
-
-            datetime(
-                year,
-                month,
-                day
-            )
-
-            return (
-                year,
-                month,
-                day
-            )
-
+            datetime(year, month, day)
+            return year, month, day
         except ValueError:
-
             pass
 
-    # --------------------------------------------------------
-    # 西元 8 碼
-    # 例如：20260528
-    # --------------------------------------------------------
-
-    if re.fullmatch(
-        r"\d{8}",
-        compact
-    ):
-
-        year = int(
-            compact[:4]
-        )
-
-        month = int(
-            compact[4:6]
-        )
-
-        day = int(
-            compact[6:8]
-        )
+    if re.fullmatch(r"\d{8}", compact):
+        year = int(compact[:4])
+        month = int(compact[4:6])
+        day = int(compact[6:8])
 
         try:
-
-            datetime(
-                year,
-                month,
-                day
-            )
-
-            return (
-                year,
-                month,
-                day
-            )
-
+            datetime(year, month, day)
+            return year, month, day
         except ValueError:
-
             pass
-
-    # ========================================================
-    # 一般日期格式
-    # ========================================================
 
     text = (
         text
@@ -188,13 +112,62 @@ def parse_date(value):
         .replace(".", "-")
     )
 
-    # ========================================================
     # 民國日期
-    #
-    # 例如：
-    # 115-05-28
-    # ========================================================
+    match = re.match(
+        r"^(\d{2,3})-(\d{1,2})-(\d{1,2})$",
+        text
+    )
 
+    if match:
+        year = int(match.group(1))
+        month = int(match.group(2))
+        day = int(match.group(3))
+
+        if year < 1911:
+            year += 1911
+
+        try:
+            datetime(year, month, day)
+            return year, month, day
+        except ValueError:
+            return None
+
+    # 西元日期
+    match = re.match(
+        r"^(\d{4})-(\d{1,2})-(\d{1,2})$",
+        text
+    )
+
+    if match:
+        year = int(match.group(1))
+        month = int(match.group(2))
+        day = int(match.group(3))
+
+        try:
+            datetime(year, month, day)
+            return year, month, day
+        except ValueError:
+            return None
+
+    return None
+
+    text = str(value).strip()
+
+    if not text:
+        return None
+
+    text = text.split(" ")[0]
+
+    text = (
+        text
+        .replace("年", "-")
+        .replace("月", "-")
+        .replace("日", "")
+        .replace("/", "-")
+        .replace(".", "-")
+    )
+
+    # 民國日期
     match = re.match(
         r"^(\d{2,3})-(\d{1,2})-(\d{1,2})$",
         text
@@ -202,47 +175,16 @@ def parse_date(value):
 
     if match:
 
-        year = int(
-            match.group(1)
-        )
-
-        month = int(
-            match.group(2)
-        )
-
-        day = int(
-            match.group(3)
-        )
+        year = int(match.group(1))
+        month = int(match.group(2))
+        day = int(match.group(3))
 
         if year < 1911:
-
             year += 1911
 
-        try:
+        return year, month, day
 
-            datetime(
-                year,
-                month,
-                day
-            )
-
-            return (
-                year,
-                month,
-                day
-            )
-
-        except ValueError:
-
-            return None
-
-    # ========================================================
     # 西元日期
-    #
-    # 例如：
-    # 2026-05-28
-    # ========================================================
-
     match = re.match(
         r"^(\d{4})-(\d{1,2})-(\d{1,2})$",
         text
@@ -250,35 +192,11 @@ def parse_date(value):
 
     if match:
 
-        year = int(
-            match.group(1)
+        return (
+            int(match.group(1)),
+            int(match.group(2)),
+            int(match.group(3)),
         )
-
-        month = int(
-            match.group(2)
-        )
-
-        day = int(
-            match.group(3)
-        )
-
-        try:
-
-            datetime(
-                year,
-                month,
-                day
-            )
-
-            return (
-                year,
-                month,
-                day
-            )
-
-        except ValueError:
-
-            return None
 
     return None
 
@@ -313,10 +231,6 @@ def get_transaction_date(row):
 # 路段
 # ============================================================
 
-# ============================================================
-# 路段
-# ============================================================
-
 def extract_route(location):
 
     if not location:
@@ -324,50 +238,27 @@ def extract_route(location):
 
     text = str(location).strip()
 
-    # --------------------------------------------------------
-    # 移除行政區前綴
-    #
+    # 只擷取道路名稱，不把門牌號碼算進路段。
     # 例如：
-    # 台北市士林區天母西路50號
-    # ↓
-    # 天母西路50號
-    #
-    # 台北市北投區中山北路七段20號
-    # ↓
-    # 中山北路七段20號
-    # --------------------------------------------------------
+    # 德行東路109巷3號 -> 德行東路
+    # 天母西路50號 -> 天母西路
+    # 中山北路六段66巷 -> 中山北路六段
+    patterns = [
+        r"[\u4e00-\u9fff]{2,10}路(?:[一二三四五六七八九十百]+段|\d+段)?",
+        r"[\u4e00-\u9fff]{2,10}街",
+        r"[\u4e00-\u9fff]{2,10}大道",
+    ]
 
-    text = re.sub(
-        r"^.*?(?:士林區|北投區)",
-        "",
-        text
-    )
+    for pattern in patterns:
 
-    # --------------------------------------------------------
-    # 找出道路名稱
-    #
-    # 可以辨識：
-    # 天母西路
-    # 德行東路
-    # 中山北路六段
-    # 承德路七段
-    # 克強路
-    # 美崙街
-    # --------------------------------------------------------
+        match = re.search(
+            pattern,
+            text
+        )
 
-    pattern = (
-        r"[\u4e00-\u9fff]{2,10}"
-        r"(?:路|街|大道)"
-        r"(?:[0-9一二三四五六七八九十百]+段)?"
-    )
+        if match:
 
-    match = re.search(
-        pattern,
-        text
-    )
-
-    if match:
-        return match.group(0)
+            return match.group(0)
 
     return "其他"
 
@@ -710,120 +601,46 @@ def monthly_trend(items):
 
 def determine_trend(months):
 
-    # ========================================================
-    # 第10階段：
-    # 改用「最近3個月」判斷市場方向
-    # 避免拿多年以前的價格直接與最新月份比較
-    # ========================================================
-
     if len(months) < 2:
+
         return {
             "direction": "資料不足",
             "change": None,
             "confidence": "低",
-            "period": "資料不足",
-            "latest_count": 0,
-            "window_count": 0,
-            "warning": "有效月份不足，無法判斷近期趨勢。",
         }
 
-    # 最近3個月
-    recent = months[-3:]
+    first = months[0]["average"]
 
-    latest = recent[-1]
+    latest = months[-1]["average"]
 
-    latest_average = latest["average"]
-    latest_count = latest["count"]
+    if first == 0:
 
-    # 最近3個月交易量
-    window_count = sum(
-        item["count"]
-        for item in recent
-    )
-
-    # ========================================================
-    # 前期加權平均
-    #
-    # 例如：
-    # 5月 16筆
-    # 6月 4筆
-    #
-    # 會按照交易筆數加權
-    # 避免單一小樣本月份影響太大
-    # ========================================================
-
-    previous_months = recent[:-1]
-
-    previous_total_count = sum(
-        item["count"]
-        for item in previous_months
-    )
-
-    if previous_total_count <= 0:
         return {
             "direction": "資料不足",
             "change": None,
             "confidence": "低",
-            "period": "最近3個月",
-            "latest_count": latest_count,
-            "window_count": window_count,
-            "warning": "前期交易樣本不足。",
         }
-
-    previous_weighted_average = (
-        sum(
-            item["average"] * item["count"]
-            for item in previous_months
-        )
-        / previous_total_count
-    )
-
-    if previous_weighted_average == 0:
-        return {
-            "direction": "資料不足",
-            "change": None,
-            "confidence": "低",
-            "period": "最近3個月",
-            "latest_count": latest_count,
-            "window_count": window_count,
-            "warning": "前期價格資料不足。",
-        }
-
-    # ========================================================
-    # 最近價格變化
-    # ========================================================
 
     change = (
         (
-            latest_average
-            - previous_weighted_average
+            latest - first
         )
-        / previous_weighted_average
+        / first
         * 100
     )
 
-    # ========================================================
-    # 趨勢方向
-    # ========================================================
+    latest_count = months[-1]["count"]
 
-    if change >= 3:
-        direction = "上升"
+    total_count = sum(
+        item["count"]
+        for item in months
+    )
 
-    elif change <= -3:
-        direction = "下降"
-
-    else:
-        direction = "盤整"
-
-    # ========================================================
-    # 樣本可信度
-    # ========================================================
-
-    if latest_count >= 10 and window_count >= 30:
+    if latest_count >= 10 and total_count >= 30:
 
         confidence = "高"
 
-    elif latest_count >= 5 and window_count >= 15:
+    elif latest_count >= 5 and total_count >= 15:
 
         confidence = "中"
 
@@ -831,31 +648,17 @@ def determine_trend(months):
 
         confidence = "低"
 
-    # ========================================================
-    # 小樣本警告
-    # ========================================================
+    if change >= 3:
 
-    if latest_count < 5:
+        direction = "上升"
 
-        warning = (
-            f"最近月份僅 {latest_count} 筆交易，"
-            "近期趨勢僅供參考，"
-            "不宜直接解讀為整體房價走勢。"
-        )
+    elif change <= -3:
 
-    elif latest_count < 10:
-
-        warning = (
-            f"最近月份 {latest_count} 筆交易，"
-            "樣本量中等，建議搭配路段與住宅類型觀察。"
-        )
+        direction = "下降"
 
     else:
 
-        warning = (
-            "最近月份樣本量相對充足，"
-            "可作為近期市場方向參考。"
-        )
+        direction = "盤整"
 
     return {
 
@@ -864,14 +667,6 @@ def determine_trend(months):
         "change": change,
 
         "confidence": confidence,
-
-        "period": "最近3個月",
-
-        "latest_count": latest_count,
-
-        "window_count": window_count,
-
-        "warning": warning,
 
     }
 
@@ -952,7 +747,7 @@ def build_report_data(records):
     report = {
 
         "generated_at":
-            datetime.now(ZoneInfo("Asia/Taipei")).strftime(
+            datetime.now().strftime(
                 "%Y-%m-%d %H:%M:%S"
             ),
 
@@ -999,11 +794,8 @@ def build_report_data(records):
             "months": months,
 
             "routes": routes,
-            "latest_transaction_date": max(
-                (item.get("date") for item in items if item.get("date")),
-                default=None
-            ),
-            }
+
+        }
 
     return report
 
@@ -1034,107 +826,10 @@ def money(value):
 
 
 def create_html(report):
-    # ============================================================
-    # 第12-1階段：士林／北投市場總覽
-    # ============================================================
 
-    summary_rows = ""
-
-    for district, data in report["districts"].items():
-
-        stats = data["stats"]
-        trend = data["trend"]
-
-        change = trend.get("change")
-
-        if change is None:
-            change_text = "—"
-        else:
-            change_text = f"{change:+.2f}%"
-
-        summary_rows += f"""
-            <tr>
-                <td>
-                    <strong>{html_escape(district)}</strong>
-                </td>
-
-                <td>
-                    {stats["count"]:,} 筆
-                </td>
-
-                <td>
-                    {money(stats["average_price"])}
-                    萬／坪
-                </td>
-
-                <td>
-                    {money(stats["median_price"])}
-                    萬／坪
-                </td>
-
-                <td>
-                    {html_escape(trend["direction"])}
-                </td>
-
-                <td>
-                    {change_text}
-                </td>
-            </tr>
-        """
-
-    summary = f"""
-        <section class="summary">
-
-            <h2>🏠 士林區／北投區市場總覽</h2>
-
-            <table>
-
-                <tr>
-                    <th>行政區</th>
-                    <th>交易量</th>
-                    <th>平均單價</th>
-                    <th>中位數</th>
-                    <th>市場方向</th>
-                    <th>近期變化</th>
-                </tr>
-
-                {summary_rows}
-
-            </table>
-
-        </section>
-    """
     generated_at = report[
         "generated_at"
     ]
-    latest_dates = [
-        data.get("latest_transaction_date")
-        for data in report["districts"].values()
-        if data.get("latest_transaction_date")
-    ]
-
-    latest_transaction_date = (
-        max(latest_dates)
-        if latest_dates
-        else None
-    )
-
-    if latest_transaction_date:
-        if isinstance(latest_transaction_date, (tuple, list)):
-            if len(latest_transaction_date) >= 3:
-                latest_transaction_date = (
-                    f"{latest_transaction_date[0]}年"
-                    f"{latest_transaction_date[1]}月"
-                    f"{latest_transaction_date[2]}日"
-                )
-            else:
-                latest_transaction_date = str(latest_transaction_date)
-        elif hasattr(latest_transaction_date, "strftime"):
-            latest_transaction_date = latest_transaction_date.strftime("%Y年%m月%d日")
-        else:
-            latest_transaction_date = str(latest_transaction_date)
-    else:
-        latest_transaction_date = "無資料"
 
     cards = ""
 
@@ -1332,168 +1027,7 @@ def create_html(report):
 
         cards += """
             </table>
-        """
 
-        # ============================================================
-        # 歷史房價趨勢圖
-        # ============================================================
-
-        valid_months = [
-            month
-            for month in data["months"]
-            if month.get("average") is not None
-        ]
-
-        if valid_months:
-            chart_width = 900
-            chart_height = 330
-            left = 70
-            right = 25
-            top = 35
-            bottom = 65
-
-            values = [float(month["average"]) for month in valid_months]
-            min_value = min(values)
-            max_value = max(values)
-
-            if max_value == min_value:
-                max_value += 1
-                min_value -= 1
-
-            plot_width = chart_width - left - right
-            plot_height = chart_height - top - bottom
-
-            points = []
-            circles = []
-            labels = []
-            grid_lines = []
-
-            for index, month in enumerate(valid_months):
-                if len(valid_months) == 1:
-                    x = left + plot_width / 2
-                else:
-                    x = left + plot_width * index / (len(valid_months) - 1)
-
-                y = (
-                    top
-                    + plot_height
-                    - (
-                        (float(month["average"]) - min_value)
-                        / (max_value - min_value)
-                    )
-                    * plot_height
-                )
-
-                points.append(f"{x:.1f},{y:.1f}")
-
-                circles.append(
-                    f"""
-                    <circle
-                        cx="{x:.1f}"
-                        cy="{y:.1f}"
-                        r="5"
-                        class="price-point"
-                    />
-                    <text
-                        x="{x:.1f}"
-                        y="{max(y - 12, 18):.1f}"
-                        text-anchor="middle"
-                        class="price-value"
-                    >{float(month["average"]):.2f}</text>
-                    """
-                )
-
-                labels.append(
-                    f"""
-                    <text
-                        x="{x:.1f}"
-                        y="{chart_height - 25}"
-                        text-anchor="middle"
-                        class="chart-label"
-                    >{html_escape(month["month"])}</text>
-                    """
-                )
-
-            for grid_index in range(5):
-                ratio = grid_index / 4
-                y = top + plot_height * ratio
-                value = max_value - (max_value - min_value) * ratio
-
-                grid_lines.append(
-                    f"""
-                    <line
-                        x1="{left}"
-                        y1="{y:.1f}"
-                        x2="{chart_width - right}"
-                        y2="{y:.1f}"
-                        class="chart-grid"
-                    />
-                    <text
-                        x="{left - 10}"
-                        y="{y + 4:.1f}"
-                        text-anchor="end"
-                        class="chart-axis-label"
-                    >{value:.2f}</text>
-                    """
-                )
-
-            history_chart = f"""
-            <div class="history-chart">
-                <h3>📈 歷史房價趨勢</h3>
-                <div class="chart-subtitle">
-                    平均單價（萬元／坪）
-                </div>
-
-                <div class="chart-container">
-                    <svg
-                        viewBox="0 0 {chart_width} {chart_height}"
-                        class="price-chart"
-                        role="img"
-                        aria-label="{html_escape(district)}歷史平均單價趨勢圖"
-                    >
-                        {"".join(grid_lines)}
-
-                        <line
-                            x1="{left}"
-                            y1="{top}"
-                            x2="{left}"
-                            y2="{chart_height - bottom}"
-                            class="chart-axis"
-                        />
-
-                        <line
-                            x1="{left}"
-                            y1="{chart_height - bottom}"
-                            x2="{chart_width - right}"
-                            y2="{chart_height - bottom}"
-                            class="chart-axis"
-                        />
-
-                        <polyline
-                            points="{" ".join(points)}"
-                            class="price-line"
-                            fill="none"
-                        />
-
-                        {"".join(circles)}
-                        {"".join(labels)}
-                    </svg>
-                </div>
-            </div>
-            """
-        else:
-            history_chart = """
-            <div class="history-chart">
-                <h3>📈 歷史房價趨勢</h3>
-                <div class="no-chart-data">
-                    目前沒有足夠的歷史月份資料可繪製趨勢圖。
-                </div>
-            </div>
-            """
-
-        cards += history_chart
-
-        cards += """
         </section>
         """
 
@@ -1654,85 +1188,6 @@ footer {{
     padding: 30px;
 }}
 
-.history-chart {{
-    margin-top: 25px;
-    margin-bottom: 10px;
-}}
-
-.history-chart h3 {{
-    margin-bottom: 6px;
-}}
-
-.chart-subtitle {{
-    color: #64748b;
-    font-size: 13px;
-    margin-bottom: 10px;
-}}
-
-.chart-container {{
-    width: 100%;
-    overflow-x: auto;
-    background: #ffffff;
-    border-radius: 12px;
-    border: 1px solid #e5e7eb;
-    padding: 12px;
-    box-sizing: border-box;
-}}
-
-.price-chart {{
-    width: 100%;
-    height: auto;
-    min-height: 280px;
-    display: block;
-}}
-
-.chart-grid {{
-    stroke: #e2e8f0;
-    stroke-width: 1;
-}}
-
-.chart-axis {{
-    stroke: #94a3b8;
-    stroke-width: 1.2;
-}}
-
-.price-line {{
-    stroke: #2563eb;
-    stroke-width: 4;
-    stroke-linejoin: round;
-    stroke-linecap: round;
-}}
-
-.price-point {{
-    fill: #ffffff;
-    stroke: #2563eb;
-    stroke-width: 3;
-}}
-
-.chart-label {{
-    fill: #475569;
-    font-size: 12px;
-}}
-
-.chart-axis-label {{
-    fill: #64748b;
-    font-size: 11px;
-}}
-
-.price-value {{
-    fill: #1d4ed8;
-    font-size: 11px;
-    font-weight: bold;
-}}
-
-.no-chart-data {{
-    background: #f8fafc;
-    color: #64748b;
-    padding: 18px;
-    border-radius: 10px;
-    text-align: center;
-}}
-
 @media(max-width:700px) {{
 
     .district {{
@@ -1762,20 +1217,13 @@ footer {{
 {html_escape(generated_at)}
 </p>
 
-<p>
-房價資料截至：
-{html_escape(latest_transaction_date)}
-</p>
-
 </header>
 
-    <div class="container">
+<div class="container">
 
-        {summary}
+{cards}
 
-        {cards}
-
-    </div>
+</div>
 
 <footer>
 
@@ -1804,7 +1252,7 @@ def save_reports(report):
         exist_ok=True
     )
 
-    today = datetime.now(ZoneInfo("Asia/Taipei")).strftime(
+    today = datetime.now().strftime(
         "%Y-%m-%d"
     )
 
