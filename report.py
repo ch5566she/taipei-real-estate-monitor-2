@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-第十一階段：房市監控＋市場判讀＋房仲實戰決策
+第十二階段：房市異常警報＋房仲開發名單
 
 功能：
 1. 讀取 data/taipei_transactions.csv
@@ -943,6 +943,198 @@ def route_analysis(items):
     return result
 
 
+
+# ============================================================
+# 第12階段：路段異常監控＋房仲開發名單
+# ============================================================
+
+def route_monitor_analysis(items, district_stats):
+    """
+    路段級異常監控：
+    1. 最新月份價格變化
+    2. 最新月份交易量變化
+    3. 路段平均價與行政區中位數的差距
+    4. 房仲開發分數
+
+    注意：
+    - 僅使用實際有交易的月份。
+    - 至少需要兩個月份才計算路段價格變化。
+    - 樣本不足時不產生強烈的異常判斷。
+    """
+    groups = {}
+
+    for item in items:
+        route = item.get("route") or "未知路段"
+        date_value = item.get("date")
+        if not date_value:
+            continue
+
+        groups.setdefault(route, []).append(item)
+
+    district_median = district_stats.get("median_price")
+
+    district_dates = [
+        item.get("date")
+        for item in items
+        if item.get("date")
+    ]
+    district_latest_key = (
+        max((d[0], d[1]) for d in district_dates)
+        if district_dates
+        else None
+    )
+
+    result = []
+
+    for route, group in groups.items():
+        if len(group) < 2:
+            continue
+
+        month_groups = {}
+
+        for item in group:
+            date_value = item.get("date")
+            if not date_value:
+                continue
+
+            year, month, _ = date_value
+            key = (year, month)
+
+            month_groups.setdefault(key, []).append(
+                item.get("unit_price")
+            )
+
+        month_rows = []
+        for (year, month), prices in sorted(month_groups.items()):
+            prices = [
+                float(p) for p in prices
+                if p is not None
+            ]
+            if not prices:
+                continue
+
+            month_rows.append({
+                "month": f"{year:04d}-{month:02d}",
+                "count": len(prices),
+                "average": mean(prices),
+            })
+
+        latest = month_rows[-1] if month_rows else None
+        previous = month_rows[-2] if len(month_rows) >= 2 else None
+
+        price_change = None
+        if latest and previous and previous["average"]:
+            price_change = (
+                (latest["average"] - previous["average"])
+                / previous["average"]
+                * 100
+            )
+
+        volume_change = None
+        if latest and previous and previous["count"]:
+            volume_change = (
+                (latest["count"] - previous["count"])
+                / previous["count"]
+                * 100
+            )
+
+        route_age_months = None
+        if latest and district_latest_key:
+            try:
+                route_year, route_month = (
+                    int(latest["month"][:4]),
+                    int(latest["month"][5:7])
+                )
+                district_year, district_month = district_latest_key
+                route_age_months = (
+                    (district_year - route_year) * 12
+                    + (district_month - route_month)
+                )
+            except (TypeError, ValueError):
+                route_age_months = None
+
+        average_price = mean(
+            float(item["unit_price"])
+            for item in group
+            if item.get("unit_price") is not None
+        )
+
+        price_gap = None
+        if district_median:
+            price_gap = (
+                (average_price - district_median)
+                / district_median
+                * 100
+            )
+
+        # 開發分數（100分）：
+        # 交易量 30 + 熱度/價格 20 + 最新交易量 20
+        # + 資料新鮮度 20 + 異常訊號 10
+        count_score = min(len(group) / 10, 1.0) * 30
+
+        heat_score = min(
+            (len(group) * average_price) / 1200,
+            1.0
+        ) * 20
+
+        latest_score = min(
+            (latest["count"] if latest else 0) / 5,
+            1.0
+        ) * 20
+
+        if route_age_months is None:
+            recency_score = 0
+        elif route_age_months <= 1:
+            recency_score = 20
+        elif route_age_months <= 3:
+            recency_score = 16
+        elif route_age_months <= 6:
+            recency_score = 11
+        elif route_age_months <= 12:
+            recency_score = 6
+        else:
+            recency_score = 0
+
+        signal_score = 0
+        if price_change is not None and price_change <= -10:
+            signal_score += 10
+        elif price_change is not None and price_change >= 10:
+            signal_score += 7
+
+        development_score = round(
+            count_score
+            + heat_score
+            + latest_score
+            + recency_score
+            + signal_score,
+            1
+        )
+
+        result.append({
+            "route": route,
+            "count": len(group),
+            "average": average_price,
+            "latest_month": latest["month"] if latest else None,
+            "latest_count": latest["count"] if latest else 0,
+            "latest_average": latest["average"] if latest else None,
+            "previous_month": previous["month"] if previous else None,
+            "previous_count": previous["count"] if previous else 0,
+            "previous_average": previous["average"] if previous else None,
+            "price_change": price_change,
+            "volume_change": volume_change,
+            "route_age_months": route_age_months,
+            "price_gap_vs_district_median": price_gap,
+            "development_score": development_score,
+        })
+
+    result.sort(
+        key=lambda x: x["development_score"],
+        reverse=True
+    )
+
+    return result
+
+
 # ============================================================
 # 建立 JSON 資料
 # ============================================================
@@ -988,6 +1180,11 @@ def build_report_data(records):
             items
         )
 
+        route_monitor = route_monitor_analysis(
+            items,
+            stats
+        )
+
         report["districts"][
             district
         ] = {
@@ -999,6 +1196,7 @@ def build_report_data(records):
             "months": months,
 
             "routes": routes,
+            "route_monitor": route_monitor,
             "latest_transaction_date": max(
                 (item.get("date") for item in items if item.get("date")),
                 default=None
@@ -1576,6 +1774,274 @@ def build_market_comparison(report):
     </section>
     """
 
+
+def build_stage12_alerts(report):
+    """
+    第12階段：
+    路段異常警報＋房仲開發名單。
+    所有數字均由 report 動態計算。
+    """
+    rows = []
+    alerts = []
+    development = []
+
+    for district, data in report.get("districts", {}).items():
+        for item in data.get("route_monitor", []):
+            item = dict(item)
+            item["district"] = district
+            development.append(item)
+
+            price_change = item.get("price_change")
+            volume_change = item.get("volume_change")
+            latest_count = item.get("latest_count", 0)
+
+            if (
+                price_change is not None
+                and price_change <= -10
+                and latest_count >= 2
+                and (item.get("route_age_months") is None or item.get("route_age_months") <= 3)
+            ):
+                alerts.append({
+                    "level": "高",
+                    "district": district,
+                    "route": item["route"],
+                    "message": (
+                        f"{district}{item['route']}最新月份平均單價"
+                        f"{price_change:+.2f}%，出現明顯短期價格修正訊號。"
+                    ),
+                    "reason": "至少2筆最新月份交易",
+                })
+
+            if (
+                volume_change is not None
+                and volume_change >= 100
+                and latest_count >= 2
+                and (item.get("route_age_months") is None or item.get("route_age_months") <= 3)
+            ):
+                alerts.append({
+                    "level": "中",
+                    "district": district,
+                    "route": item["route"],
+                    "message": (
+                        f"{district}{item['route']}最新月份交易量"
+                        f"{volume_change:+.0f}%，交易活躍度明顯增加。"
+                    ),
+                    "reason": "與前一有資料月份比較",
+                })
+
+            gap = item.get("price_gap_vs_district_median")
+            if (
+                gap is not None
+                and gap <= -15
+                and latest_count >= 2
+                and (item.get("route_age_months") is None or item.get("route_age_months") <= 3)
+            ):
+                alerts.append({
+                    "level": "中",
+                    "district": district,
+                    "route": item["route"],
+                    "message": (
+                        f"{district}{item['route']}平均單價約比行政區中位數低"
+                        f"{abs(gap):.1f}%，可列入價格帶研究名單。"
+                    ),
+                    "reason": "路段平均價與行政區中位數比較",
+                })
+
+    development.sort(
+        key=lambda x: x.get("development_score", 0),
+        reverse=True
+    )
+
+    top_development = development[:10]
+
+    if not top_development:
+        return """
+        <section class="stage12">
+            <h2>🚨 房市異常警報＋房仲開發名單</h2>
+            <div class="analysis-note">
+                目前沒有足夠的路段資料產生第12階段分析。
+            </div>
+        </section>
+        """
+
+    alert_rows = ""
+    for index, item in enumerate(alerts[:12], start=1):
+        level = item["level"]
+        level_class = (
+            "alert-high" if level == "高"
+            else "alert-medium"
+        )
+
+        alert_rows += f"""
+        <tr>
+            <td>{index}</td>
+            <td>{html_escape(item['district'])}</td>
+            <td>{html_escape(item['route'])}</td>
+            <td>
+                <span class="alert-badge {level_class}">
+                    {level}
+                </span>
+            </td>
+            <td>{html_escape(item['message'])}</td>
+            <td>{html_escape(item['reason'])}</td>
+        </tr>
+        """
+
+    if not alert_rows:
+        alert_rows = """
+        <tr>
+            <td colspan="6">
+                目前沒有達到警報門檻的路段。
+                這不代表市場沒有變化，而是目前資料未達到設定的異常門檻。
+            </td>
+        </tr>
+        """
+
+    development_rows = ""
+    for index, item in enumerate(top_development, start=1):
+        price_change = item.get("price_change")
+        volume_change = item.get("volume_change")
+
+        price_text = (
+            "—"
+            if price_change is None
+            else f"{price_change:+.2f}%"
+        )
+
+        volume_text = (
+            "—"
+            if volume_change is None
+            else f"{volume_change:+.0f}%"
+        )
+
+        age = item.get("route_age_months")
+        if age is None:
+            age_text = "—"
+        elif age == 0:
+            age_text = "本期"
+        else:
+            age_text = f"{age}個月前"
+
+        development_rows += f"""
+        <tr>
+            <td><strong>{index}</strong></td>
+            <td>{html_escape(item['district'])}</td>
+            <td><strong>{html_escape(item['route'])}</strong></td>
+            <td>{item.get('count', 0)} 筆</td>
+            <td>{money(item.get('average'))}</td>
+            <td>{price_text}</td>
+            <td>{volume_text}</td>
+            <td>{age_text}</td>
+            <td>
+                <strong class="score">
+                    {item.get('development_score', 0):.1f}
+                </strong>
+            </td>
+        </tr>
+        """
+
+    top = top_development[0]
+
+    if alerts:
+        action_text = (
+            f"目前共有 {len(alerts)} 個路段達到異常警報門檻，"
+            "建議優先檢查成交明細與同路段競品。"
+        )
+    else:
+        action_text = (
+            "目前沒有路段達到異常警報門檻，"
+            "建議以開發分數較高的路段作為日常追蹤重點。"
+        )
+
+    return f"""
+    <section class="stage12">
+
+        <h2>🚨 第12階段｜房市異常警報＋房仲開發名單</h2>
+
+        <div class="stage12-summary">
+            <div class="stage12-card">
+                <div class="stage12-title">🚨 異常警報</div>
+                <div class="stage12-value">{len(alerts)}</div>
+                <div>個路段</div>
+            </div>
+
+            <div class="stage12-card">
+                <div class="stage12-title">🔥 第一開發優先</div>
+                <div class="stage12-value">
+                    {html_escape(top['route'])}
+                </div>
+                <div>
+                    {html_escape(top['district'])}
+                </div>
+            </div>
+
+            <div class="stage12-card">
+                <div class="stage12-title">🎯 開發分數</div>
+                <div class="stage12-value">
+                    {top.get('development_score', 0):.1f}
+                </div>
+                <div>滿分100</div>
+            </div>
+
+            <div class="stage12-card">
+                <div class="stage12-title">📊 監控路段</div>
+                <div class="stage12-value">
+                    {len(development)}
+                </div>
+                <div>個</div>
+            </div>
+        </div>
+
+        <div class="stage12-action">
+            <strong>📞 今日房仲行動：</strong>
+            {html_escape(action_text)}
+        </div>
+
+        <h3>🚨 路段異常警報</h3>
+
+        <div class="table-scroll">
+        <table class="stage12-table">
+            <tr>
+                <th>排名</th>
+                <th>行政區</th>
+                <th>路段</th>
+                <th>等級</th>
+                <th>警報內容</th>
+                <th>判斷依據</th>
+            </tr>
+            {alert_rows}
+        </table>
+        </div>
+
+        <h3>🔥 今日房仲開發優先名單 Top 10</h3>
+
+        <div class="table-scroll">
+        <table class="stage12-table">
+            <tr>
+                <th>排名</th>
+                <th>行政區</th>
+                <th>路段</th>
+                <th>交易量</th>
+                <th>平均單價</th>
+                <th>最新價格變化</th>
+                <th>交易量變化</th>
+                <th>資料新鮮度</th>
+                <th>開發分數</th>
+            </tr>
+            {development_rows}
+        </table>
+        </div>
+
+        <div class="stage12-note">
+            ⚠️ 本階段屬於「路段監控與開發排序」，不是單一物件估價。
+            價格異常必須再搭配屋齡、樓層、坪數、格局、車位及個案條件確認。
+            若最新月份交易筆數過少，系統會降低警報判斷的可信度。
+        </div>
+
+    </section>
+    """
+
+
 def create_html(report):
     # ============================================================
     # 第12-1階段：士林／北投市場總覽
@@ -1649,6 +2115,7 @@ def create_html(report):
     """
     market_analysis = build_market_comparison(report)
     decision_dashboard = build_decision_dashboard(report)
+    stage12_alerts = build_stage12_alerts(report)
 
     generated_at = report[
         "generated_at"
@@ -2256,6 +2723,99 @@ footer {{
     margin-bottom: 8px;
 }}
 
+
+.stage12 {{
+    margin: 25px 0 30px 0;
+    padding: 24px;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.07);
+}}
+
+.stage12 h2 {{
+    margin-top: 0;
+}}
+
+.stage12 h3 {{
+    margin-top: 24px;
+}}
+
+.stage12-summary {{
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin: 18px 0;
+}}
+
+.stage12-card {{
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px;
+    line-height: 1.6;
+}}
+
+.stage12-title {{
+    color: #1d4ed8;
+    font-weight: 700;
+}}
+
+.stage12-value {{
+    margin-top: 6px;
+    font-size: 24px;
+    font-weight: 800;
+    color: #0f172a;
+}}
+
+.stage12-action {{
+    margin: 18px 0;
+    padding: 18px;
+    background: #eff6ff;
+    border-left: 5px solid #2563eb;
+    border-radius: 10px;
+    line-height: 1.8;
+}}
+
+.stage12-table {{
+    margin-bottom: 18px;
+}}
+
+.alert-badge {{
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+}}
+
+.alert-high {{
+    background: #fee2e2;
+    color: #b91c1c;
+}}
+
+.alert-medium {{
+    background: #fef3c7;
+    color: #92400e;
+}}
+
+.score {{
+    color: #1d4ed8;
+}}
+
+.stage12-note {{
+    margin-top: 18px;
+    padding: 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    color: #64748b;
+    line-height: 1.7;
+}}
+
+.table-scroll {{
+    overflow-x: auto;
+}}
+
 @media(max-width:700px) {{
 
     .district {{
@@ -2299,6 +2859,8 @@ footer {{
         {market_analysis}
 
         {decision_dashboard}
+
+        {stage12_alerts}
 
         {cards}
 
