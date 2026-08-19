@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-08-19T21:30:43.192445+00:00",
-  "stage": "第21階段：在售物件 × 實價成交比價引擎（同地址＋車位校正）",
+  "generated_at": "2026-08-19T21:40:56.320164+00:00",
+  "stage": "第24階段：在售物件 × 實價成交比價引擎（嚴格同類案例＋樣本門檻＋車位校正）",
   "summary": {
     "listing_count": 1,
     "transaction_count": 48,
     "below_market": 0,
     "near_market": 0,
-    "above_market": 1,
-    "insufficient_sample": 0
+    "above_market": 0,
+    "insufficient_sample": 1
   },
   "results": [
     {
@@ -36,47 +36,29 @@
         "updated_at": "2026-08-20"
       },
       "comparison": {
-        "sample_count": 1,
-        "market_average": 19.88,
-        "market_median": 19.88,
-        "q1": 19.88,
-        "q3": 19.88,
+        "sample_count": 0,
+        "market_average": null,
+        "market_median": null,
+        "q1": null,
+        "q3": null,
         "listing_unit_price": 108.5,
-        "raw_listing_unit_price": 108.5,
-        "premium_ratio": 4.4577,
-        "premium_percent": 445.77,
+        "premium_ratio": null,
+        "premium_percent": null,
         "market": {
-          "level": "高於市場",
-          "emoji": "🔴",
-          "description": "目前開價明顯高於附近成交行情"
+          "level": "樣本不足",
+          "emoji": "⚪",
+          "description": "目前僅有 0 筆有效可比成交，不足以進行正式市場溢價／折價判定"
         },
         "recommendations": {
-          "seller_price_low": 19.88,
-          "seller_price_high": 19.88,
-          "buyer_price_low": 18.29,
-          "buyer_price_high": 19.28,
-          "note": "成交樣本偏少，建議搭配現場屋況、樓層與車位條件判斷"
+          "seller_price_low": null,
+          "seller_price_high": null,
+          "buyer_price_low": null,
+          "buyer_price_high": null,
+          "note": "成交樣本不足3筆，暫不提供精確議價價格；請優先補充同門牌、同社區或同路段成交案例。"
         },
         "same_address_count": 0,
         "same_unit_count": 0,
-        "comparables": [
-          {
-            "score": 15,
-            "match_level": "同路段／相近坪數",
-            "same_address": false,
-            "same_unit": false,
-            "date": "2026-06-25",
-            "location": "葫蘆街135巷5弄3號二樓",
-            "street": "葫蘆街",
-            "building_type": "公寓",
-            "area": 24.15,
-            "unit_price": 19.88,
-            "transaction_price": 480.0,
-            "parking_price": 0.0,
-            "parking_area": 0.0,
-            "building_name": ""
-          }
-        ]
+        "comparables": []
       }
     }
   ]
