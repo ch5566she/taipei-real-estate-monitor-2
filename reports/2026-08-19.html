@@ -155,6 +155,85 @@ footer {
     padding: 30px;
 }
 
+.history-chart {
+    margin-top: 25px;
+    margin-bottom: 10px;
+}
+
+.history-chart h3 {
+    margin-bottom: 6px;
+}
+
+.chart-subtitle {
+    color: #64748b;
+    font-size: 13px;
+    margin-bottom: 10px;
+}
+
+.chart-container {
+    width: 100%;
+    overflow-x: auto;
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    padding: 12px;
+    box-sizing: border-box;
+}
+
+.price-chart {
+    width: 100%;
+    height: auto;
+    min-height: 280px;
+    display: block;
+}
+
+.chart-grid {
+    stroke: #e2e8f0;
+    stroke-width: 1;
+}
+
+.chart-axis {
+    stroke: #94a3b8;
+    stroke-width: 1.2;
+}
+
+.price-line {
+    stroke: #2563eb;
+    stroke-width: 4;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.price-point {
+    fill: #ffffff;
+    stroke: #2563eb;
+    stroke-width: 3;
+}
+
+.chart-label {
+    fill: #475569;
+    font-size: 12px;
+}
+
+.chart-axis-label {
+    fill: #64748b;
+    font-size: 11px;
+}
+
+.price-value {
+    fill: #1d4ed8;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+.no-chart-data {
+    background: #f8fafc;
+    color: #64748b;
+    padding: 18px;
+    border-radius: 10px;
+    text-align: center;
+}
+
 @media(max-width:700px) {
 
     .district {
@@ -181,7 +260,7 @@ footer {
 
 <p>
 產生時間：
-2026-08-19 19:18:04
+2026-08-19 20:03:39
 </p>
 
 <p>
@@ -501,7 +580,220 @@ footer {
                 </tr>
             
             </table>
+        
+            <div class="history-chart">
+                <h3>📈 歷史房價趨勢</h3>
+                <div class="chart-subtitle">
+                    平均單價（萬元／坪）
+                </div>
 
+                <div class="chart-container">
+                    <svg
+                        viewBox="0 0 900 330"
+                        class="price-chart"
+                        role="img"
+                        aria-label="士林區歷史平均單價趨勢圖"
+                    >
+                        
+                    <line
+                        x1="70"
+                        y1="35.0"
+                        x2="875"
+                        y2="35.0"
+                        class="chart-grid"
+                    />
+                    <text
+                        x="60"
+                        y="39.0"
+                        text-anchor="end"
+                        class="chart-axis-label"
+                    >89.33</text>
+                    
+                    <line
+                        x1="70"
+                        y1="92.5"
+                        x2="875"
+                        y2="92.5"
+                        class="chart-grid"
+                    />
+                    <text
+                        x="60"
+                        y="96.5"
+                        text-anchor="end"
+                        class="chart-axis-label"
+                    >83.58</text>
+                    
+                    <line
+                        x1="70"
+                        y1="150.0"
+                        x2="875"
+                        y2="150.0"
+                        class="chart-grid"
+                    />
+                    <text
+                        x="60"
+                        y="154.0"
+                        text-anchor="end"
+                        class="chart-axis-label"
+                    >77.84</text>
+                    
+                    <line
+                        x1="70"
+                        y1="207.5"
+                        x2="875"
+                        y2="207.5"
+                        class="chart-grid"
+                    />
+                    <text
+                        x="60"
+                        y="211.5"
+                        text-anchor="end"
+                        class="chart-axis-label"
+                    >72.10</text>
+                    
+                    <line
+                        x1="70"
+                        y1="265.0"
+                        x2="875"
+                        y2="265.0"
+                        class="chart-grid"
+                    />
+                    <text
+                        x="60"
+                        y="269.0"
+                        text-anchor="end"
+                        class="chart-axis-label"
+                    >66.35</text>
+                    
+
+                        <line
+                            x1="70"
+                            y1="35"
+                            x2="70"
+                            y2="265"
+                            class="chart-axis"
+                        />
+
+                        <line
+                            x1="70"
+                            y1="265"
+                            x2="875"
+                            y2="265"
+                            class="chart-axis"
+                        />
+
+                        <polyline
+                            points="70.0,108.3 271.2,35.0 472.5,191.0 673.8,149.6 875.0,265.0"
+                            class="price-line"
+                            fill="none"
+                        />
+
+                        
+                    <circle
+                        cx="70.0"
+                        cy="108.3"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="70.0"
+                        y="96.3"
+                        text-anchor="middle"
+                        class="price-value"
+                    >82.00</text>
+                    
+                    <circle
+                        cx="271.2"
+                        cy="35.0"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="271.2"
+                        y="23.0"
+                        text-anchor="middle"
+                        class="price-value"
+                    >89.33</text>
+                    
+                    <circle
+                        cx="472.5"
+                        cy="191.0"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="472.5"
+                        y="179.0"
+                        text-anchor="middle"
+                        class="price-value"
+                    >73.75</text>
+                    
+                    <circle
+                        cx="673.8"
+                        cy="149.6"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="673.8"
+                        y="137.6"
+                        text-anchor="middle"
+                        class="price-value"
+                    >77.88</text>
+                    
+                    <circle
+                        cx="875.0"
+                        cy="265.0"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="875.0"
+                        y="253.0"
+                        text-anchor="middle"
+                        class="price-value"
+                    >66.35</text>
+                    
+                        
+                    <text
+                        x="70.0"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2020-12</text>
+                    
+                    <text
+                        x="271.2"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2026-04</text>
+                    
+                    <text
+                        x="472.5"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2026-05</text>
+                    
+                    <text
+                        x="673.8"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2026-06</text>
+                    
+                    <text
+                        x="875.0"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2026-07</text>
+                    
+                    </svg>
+                </div>
+            </div>
+            
         </section>
         
         <section class="district">
@@ -944,7 +1236,420 @@ footer {
                 </tr>
             
             </table>
+        
+            <div class="history-chart">
+                <h3>📈 歷史房價趨勢</h3>
+                <div class="chart-subtitle">
+                    平均單價（萬元／坪）
+                </div>
 
+                <div class="chart-container">
+                    <svg
+                        viewBox="0 0 900 330"
+                        class="price-chart"
+                        role="img"
+                        aria-label="北投區歷史平均單價趨勢圖"
+                    >
+                        
+                    <line
+                        x1="70"
+                        y1="35.0"
+                        x2="875"
+                        y2="35.0"
+                        class="chart-grid"
+                    />
+                    <text
+                        x="60"
+                        y="39.0"
+                        text-anchor="end"
+                        class="chart-axis-label"
+                    >122.08</text>
+                    
+                    <line
+                        x1="70"
+                        y1="92.5"
+                        x2="875"
+                        y2="92.5"
+                        class="chart-grid"
+                    />
+                    <text
+                        x="60"
+                        y="96.5"
+                        text-anchor="end"
+                        class="chart-axis-label"
+                    >102.22</text>
+                    
+                    <line
+                        x1="70"
+                        y1="150.0"
+                        x2="875"
+                        y2="150.0"
+                        class="chart-grid"
+                    />
+                    <text
+                        x="60"
+                        y="154.0"
+                        text-anchor="end"
+                        class="chart-axis-label"
+                    >82.36</text>
+                    
+                    <line
+                        x1="70"
+                        y1="207.5"
+                        x2="875"
+                        y2="207.5"
+                        class="chart-grid"
+                    />
+                    <text
+                        x="60"
+                        y="211.5"
+                        text-anchor="end"
+                        class="chart-axis-label"
+                    >62.50</text>
+                    
+                    <line
+                        x1="70"
+                        y1="265.0"
+                        x2="875"
+                        y2="265.0"
+                        class="chart-grid"
+                    />
+                    <text
+                        x="60"
+                        y="269.0"
+                        text-anchor="end"
+                        class="chart-axis-label"
+                    >42.64</text>
+                    
+
+                        <line
+                            x1="70"
+                            y1="35"
+                            x2="70"
+                            y2="265"
+                            class="chart-axis"
+                        />
+
+                        <line
+                            x1="70"
+                            y1="265"
+                            x2="875"
+                            y2="265"
+                            class="chart-axis"
+                        />
+
+                        <polyline
+                            points="70.0,44.3 127.5,73.1 185.0,73.1 242.5,75.3 300.0,69.4 357.5,54.5 415.0,64.1 472.5,40.6 530.0,36.8 587.5,35.0 645.0,41.8 702.5,233.6 760.0,202.2 817.5,207.5 875.0,265.0"
+                            class="price-line"
+                            fill="none"
+                        />
+
+                        
+                    <circle
+                        cx="70.0"
+                        cy="44.3"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="70.0"
+                        y="32.3"
+                        text-anchor="middle"
+                        class="price-value"
+                    >118.88</text>
+                    
+                    <circle
+                        cx="127.5"
+                        cy="73.1"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="127.5"
+                        y="61.1"
+                        text-anchor="middle"
+                        class="price-value"
+                    >108.91</text>
+                    
+                    <circle
+                        cx="185.0"
+                        cy="73.1"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="185.0"
+                        y="61.1"
+                        text-anchor="middle"
+                        class="price-value"
+                    >108.92</text>
+                    
+                    <circle
+                        cx="242.5"
+                        cy="75.3"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="242.5"
+                        y="63.3"
+                        text-anchor="middle"
+                        class="price-value"
+                    >108.15</text>
+                    
+                    <circle
+                        cx="300.0"
+                        cy="69.4"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="300.0"
+                        y="57.4"
+                        text-anchor="middle"
+                        class="price-value"
+                    >110.20</text>
+                    
+                    <circle
+                        cx="357.5"
+                        cy="54.5"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="357.5"
+                        y="42.5"
+                        text-anchor="middle"
+                        class="price-value"
+                    >115.33</text>
+                    
+                    <circle
+                        cx="415.0"
+                        cy="64.1"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="415.0"
+                        y="52.1"
+                        text-anchor="middle"
+                        class="price-value"
+                    >112.02</text>
+                    
+                    <circle
+                        cx="472.5"
+                        cy="40.6"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="472.5"
+                        y="28.6"
+                        text-anchor="middle"
+                        class="price-value"
+                    >120.16</text>
+                    
+                    <circle
+                        cx="530.0"
+                        cy="36.8"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="530.0"
+                        y="24.8"
+                        text-anchor="middle"
+                        class="price-value"
+                    >121.47</text>
+                    
+                    <circle
+                        cx="587.5"
+                        cy="35.0"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="587.5"
+                        y="23.0"
+                        text-anchor="middle"
+                        class="price-value"
+                    >122.08</text>
+                    
+                    <circle
+                        cx="645.0"
+                        cy="41.8"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="645.0"
+                        y="29.8"
+                        text-anchor="middle"
+                        class="price-value"
+                    >119.72</text>
+                    
+                    <circle
+                        cx="702.5"
+                        cy="233.6"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="702.5"
+                        y="221.6"
+                        text-anchor="middle"
+                        class="price-value"
+                    >53.47</text>
+                    
+                    <circle
+                        cx="760.0"
+                        cy="202.2"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="760.0"
+                        y="190.2"
+                        text-anchor="middle"
+                        class="price-value"
+                    >64.32</text>
+                    
+                    <circle
+                        cx="817.5"
+                        cy="207.5"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="817.5"
+                        y="195.5"
+                        text-anchor="middle"
+                        class="price-value"
+                    >62.50</text>
+                    
+                    <circle
+                        cx="875.0"
+                        cy="265.0"
+                        r="5"
+                        class="price-point"
+                    />
+                    <text
+                        x="875.0"
+                        y="253.0"
+                        text-anchor="middle"
+                        class="price-value"
+                    >42.63</text>
+                    
+                        
+                    <text
+                        x="70.0"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2022-03</text>
+                    
+                    <text
+                        x="127.5"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2023-11</text>
+                    
+                    <text
+                        x="185.0"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2023-12</text>
+                    
+                    <text
+                        x="242.5"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2024-02</text>
+                    
+                    <text
+                        x="300.0"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2024-03</text>
+                    
+                    <text
+                        x="357.5"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2024-04</text>
+                    
+                    <text
+                        x="415.0"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2024-05</text>
+                    
+                    <text
+                        x="472.5"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2024-06</text>
+                    
+                    <text
+                        x="530.0"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2024-12</text>
+                    
+                    <text
+                        x="587.5"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2025-02</text>
+                    
+                    <text
+                        x="645.0"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2025-04</text>
+                    
+                    <text
+                        x="702.5"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2026-04</text>
+                    
+                    <text
+                        x="760.0"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2026-05</text>
+                    
+                    <text
+                        x="817.5"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2026-06</text>
+                    
+                    <text
+                        x="875.0"
+                        y="305"
+                        text-anchor="middle"
+                        class="chart-label"
+                    >2026-07</text>
+                    
+                    </svg>
+                </div>
+            </div>
+            
         </section>
         
 
