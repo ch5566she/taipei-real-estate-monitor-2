@@ -11,262 +11,160 @@ permissions:
   contents: write
 
 jobs:
-
   run-monitor:
-
     runs-on: ubuntu-latest
 
     steps:
 
-      # ----------------------------------------------------
+      # ==============================
       # 下載專案
-      # ----------------------------------------------------
+      # ==============================
 
       - name: 下載專案程式
         uses: actions/checkout@v4
 
-      # ----------------------------------------------------
+      # ==============================
       # 設定 Python
-      # ----------------------------------------------------
+      # ==============================
 
       - name: 設定 Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      # ----------------------------------------------------
+      # ==============================
       # 執行主程式
-      # ----------------------------------------------------
+      # ==============================
 
       - name: 執行主程式
         run: python main.py
 
-      # ----------------------------------------------------
-      # 官方實價登錄資料
-      # ----------------------------------------------------
+      # ==============================
+      # 執行房價資料蒐集
+      # ==============================
 
       - name: 執行房價資料蒐集
         run: python data_collector.py
 
-      # ----------------------------------------------------
-      # 在售案源整理
-      # ----------------------------------------------------
+      # ==============================
+      # 執行在售案源整理
+      # ==============================
 
       - name: 執行在售案源整理
         shell: bash
         run: |
-
           if [ -f "data/raw_listings.csv" ]; then
-
-            echo "=============================================="
             echo "找到 data/raw_listings.csv"
-            echo "開始整理士林區／北投區在售物件"
-            echo "=============================================="
+            echo "開始整理在售物件"
 
             python listing_collector.py \
               data/raw_listings.csv \
               data/current_listings.csv
-
           else
-
-            echo "=============================================="
-            echo "今日沒有 data/raw_listings.csv"
-            echo "略過在售案源整理"
-            echo "不使用舊資料冒充今日資料"
-            echo "=============================================="
+            echo "沒有 data/raw_listings.csv"
+            echo "略過今日在售案源整理"
 
             rm -f data/current_listings.csv
             rm -f data/listing_comparison.json
-
           fi
 
-      # ----------------------------------------------------
-      # 房價分析
-      # ----------------------------------------------------
+      # ==============================
+      # 執行房價分析
+      # ==============================
 
       - name: 執行房價分析
         run: python analyzer.py
 
-      # ----------------------------------------------------
+      # ==============================
       # 在售物件 × 實價成交比價
-      #
-      # 優先使用第26階段專業比價引擎
-      #
-      # 如果第26階段程式不存在，
-      # 才回退到舊版 listing_comparator.py
-      # ----------------------------------------------------
+      # 優先使用第26階段
+      # ==============================
 
       - name: 執行在售物件實價比價
         shell: bash
         run: |
-
           if [ -f "data/current_listings.csv" ]; then
 
-            echo "=============================================="
-            echo "找到 data/current_listings.csv"
-            echo "=============================================="
+            echo "=========================================="
+            echo "開始執行在售物件 × 實價成交比價"
+            echo "=========================================="
 
             if [ -f "listing_comparator_stage26.py" ]; then
 
               echo "使用第26階段房仲實戰定價引擎"
-              echo "檔案：listing_comparator_stage26.py"
+              echo "listing_comparator_stage26.py"
 
               python listing_comparator_stage26.py
 
             elif [ -f "listing_comparator.py" ]; then
 
               echo "找不到第26階段程式"
-              echo "回退使用 listing_comparator.py"
+              echo "改用舊版 listing_comparator.py"
 
               python listing_comparator.py
 
             else
 
-              echo "找不到任何比價程式"
+              echo "錯誤：找不到任何比價程式"
               exit 1
 
             fi
 
           else
 
-            echo "=============================================="
+            echo "=========================================="
             echo "沒有 data/current_listings.csv"
-            echo "略過在售物件 × 實價比價"
-            echo "今日報告仍會繼續產生"
-            echo "=============================================="
+            echo "略過在售物件實價比價"
+            echo "=========================================="
 
             rm -f data/listing_comparison.json
 
           fi
 
-      # ----------------------------------------------------
-      # 檢查比價結果
-      # ----------------------------------------------------
-
-      - name: 檢查比價結果
-        shell: bash
-        run: |
-
-          if [ -f "data/listing_comparison.json" ]; then
-
-            echo "=============================================="
-            echo "listing_comparison.json 已成功產生"
-            echo "=============================================="
-
-            python - <<'PY'
-import json
-
-path = "data/listing_comparison.json"
-
-with open(path, "r", encoding="utf-8") as f:
-    data = json.load(f)
-
-print("比價階段：", data.get("stage"))
-
-summary = data.get("summary", {})
-
-print("在售物件數：", summary.get("listing_count"))
-print("成交資料數：", summary.get("transaction_count"))
-print("低於市場：", summary.get("below_market"))
-print("接近市場：", summary.get("near_market"))
-print("高於市場：", summary.get("above_market"))
-print("樣本不足：", summary.get("insufficient_sample"))
-
-for index, result in enumerate(data.get("results", []), start=1):
-
-    listing = result.get("listing", {})
-    comparison = result.get("comparison", {})
-    pricing = comparison.get("pricing_engine", {})
-
-    print("")
-    print("========== 物件", index, "==========")
-    print("地址：", listing.get("location"))
-    print("開價：", listing.get("total_price"))
-    print("主要可比樣本：", comparison.get("primary_sample_count"))
-    print("市場中位數：", comparison.get("market_median"))
-    print("市場判定：", comparison.get("market", {}).get("level"))
-    print("合理價：",
-          pricing.get("market_fair_price_low"),
-          "~",
-          pricing.get("market_fair_price_high"))
-    print("合理成交：",
-          pricing.get("reasonable_transaction_price_low"),
-          "~",
-          pricing.get("reasonable_transaction_price_high"))
-    print("買方建議：",
-          pricing.get("buyer_offer_low"),
-          "~",
-          pricing.get("buyer_offer_high"))
-    print("賣方底價：",
-          pricing.get("seller_floor_low"),
-          "~",
-          pricing.get("seller_floor_high"))
-    print("可信度：", pricing.get("confidence"))
-PY
-
-          else
-
-            echo "沒有產生 listing_comparison.json"
-
-          fi
-
-      # ----------------------------------------------------
+      # ==============================
       # 產生每日房市報告
-      # ----------------------------------------------------
+      # ==============================
 
       - name: 產生每日房市報告
         run: python report.py
 
-      # ----------------------------------------------------
+      # ==============================
       # 保存房價資料
-      # ----------------------------------------------------
+      # ==============================
 
       - name: 保存房價資料
         uses: actions/upload-artifact@v4
-
         with:
           name: taipei-real-estate-data
           path: data/taipei_transactions.csv
           if-no-files-found: error
           retention-days: 7
 
-      # ----------------------------------------------------
+      # ==============================
       # 將資料與報告回存 GitHub
-      # ----------------------------------------------------
+      # ==============================
 
       - name: 將資料與報告回存 GitHub
-
         shell: bash
-
         run: |
 
           git config user.name "github-actions[bot]"
-
-          git config user.email \
-            "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add data/taipei_transactions.csv
           git add history/
           git add reports/
 
           if [ -f "data/current_listings.csv" ]; then
-
             git add data/current_listings.csv
-
           else
-
             git add -u -- data/current_listings.csv 2>/dev/null || true
-
           fi
 
           if [ -f "data/listing_comparison.json" ]; then
-
             git add data/listing_comparison.json
-
           else
-
             git add -u -- data/listing_comparison.json 2>/dev/null || true
-
           fi
 
           if git diff --cached --quiet; then
