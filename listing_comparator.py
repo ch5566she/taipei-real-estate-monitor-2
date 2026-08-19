@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 台北市士林區／北投區
-第27階段：591成交資料庫＋時間衰減＋多層級比價＋房仲實戰定價引擎
+第28階段：591成交資料庫＋時間衰減＋多層級比價＋樣本不足第二層行情推估＋房仲實戰定價引擎
 （A同門牌／同棟 → B同路段高度可比 → C同生活圈 → D區域行情 → E排除）
 
 功能：
@@ -21,10 +21,11 @@
 14. 屋齡／樓層／坪數／成交時間校正
 15. 以樣本權重計算市場合理單價
 16. 產生房仲實戰五段價格：目前開價／市場合理價／合理成交區間／買方建議出價／賣方建議底價
-17. 官方實價與591成交資料去重，避免同一筆成交重複計算
-18. 支援 YYYY-MM / YYYY-MM-DD / 民國日期的成交日期解析
-19. 以來源可靠度＋成交新鮮度控制權重
-20. 將結果輸出至 data/listing_comparison.json
+17. 樣本不足時啟用第二層行情推估：同門牌／同棟／同社區 → 同路段高度可比 → 同生活圈
+18. 官方實價與591成交資料去重，避免同一筆成交重複計算
+19. 支援 YYYY-MM / YYYY-MM-DD / 民國日期的成交日期解析
+20. 以來源可靠度＋成交新鮮度控制權重
+21. 將結果輸出至 data/listing_comparison.json
 
 注意：
 本程式先獨立運作，不修改既有 analyzer.py / report.py / main.py。
@@ -1477,6 +1478,222 @@ def calculate_recommendations(
     }
 
 
+
+def fallback_market_estimate(listing, primary_rows, reference_rows):
+    """
+    第28階段：樣本不足第二層行情推估。
+
+    正式市場判定仍維持「A/B/C至少3筆」門檻，不會因 fallback 而改成
+    「高於市場／低於市場」。fallback 只提供房仲實務上的「行情參考」。
+
+    使用順序：
+    1. A/B：同門牌／同棟／同社區（至少2筆）
+    2. A/B/C：同門牌／同棟／同社區＋同路段高度可比（至少3筆）
+    3. D：同生活圈行情參考（至少3筆）
+    4. A/B/C：若只有1～2筆，仍可作低信心參考
+    5. D：若只有1～2筆，作最低信心背景參考
+    """
+
+    def pool_stats(rows):
+        values = [(price, weight) for _, price, weight in rows if price is not None and price > 0 and weight > 0]
+        if not values:
+            return None
+        return {
+            "values": values,
+            "count": len(values),
+            "median": weighted_median(values),
+            "average": weighted_mean(values),
+            "q1": weighted_percentile(values, 0.25),
+            "q3": weighted_percentile(values, 0.75),
+        }
+
+    ab_rows = [r for r in primary_rows if r[0]["level"] in {"A", "B"}]
+    abc_rows = list(primary_rows)
+
+    ab_stats = pool_stats(ab_rows)
+    abc_stats = pool_stats(abc_rows)
+    d_stats = pool_stats(reference_rows)
+
+    selected = None
+    tier = None
+    reason = None
+
+    if ab_stats and ab_stats["count"] >= 2:
+        selected = ab_stats
+        tier = "A/B"
+        reason = "同門牌／同棟／同社區"
+    elif abc_stats and abc_stats["count"] >= 3:
+        selected = abc_stats
+        tier = "A/B/C"
+        reason = "同門牌／同棟／同社區＋同路段高度可比"
+    elif d_stats and d_stats["count"] >= 3:
+        selected = d_stats
+        tier = "D"
+        reason = "同生活圈行情參考"
+    elif abc_stats and abc_stats["count"] >= 1:
+        selected = abc_stats
+        tier = "A/B/C"
+        reason = "正式可比樣本不足，改採現有同門牌／同棟／同社區／同路段資料"
+    elif d_stats and d_stats["count"] >= 1:
+        selected = d_stats
+        tier = "D"
+        reason = "正式可比樣本不足，改採同生活圈行情參考"
+
+    if not selected or selected["median"] is None:
+        return {
+            "enabled": False,
+            "tier": None,
+            "basis": None,
+            "sample_count": 0,
+            "unit_price_low": None,
+            "unit_price_median": None,
+            "unit_price_high": None,
+            "confidence": "低",
+            "note": "目前沒有足夠的同門牌、同棟、同社區、同路段或同生活圈成交資料可供第二層推估。",
+        }
+
+    count = selected["count"]
+    median_u = selected["median"]
+    q1 = selected["q1"]
+    q3 = selected["q3"]
+
+    # 有3筆以上時使用Q1/Q3；只有1～2筆時改用中位數附近的保守區間，
+    # 避免單筆成交直接被誤解成精確市場價。
+    if count >= 3 and q1 is not None and q3 is not None:
+        low_u = q1
+        high_u = q3
+    elif count == 2:
+        low_u = median_u * 0.97
+        high_u = median_u * 1.03
+    else:
+        low_u = median_u * 0.95
+        high_u = median_u * 1.05
+
+    if tier == "A/B" and count >= 3:
+        confidence = "中"
+    elif tier == "A/B" and count >= 2:
+        confidence = "中低"
+    elif tier == "A/B/C" and count >= 3:
+        confidence = "中低"
+    elif tier == "D" and count >= 3:
+        confidence = "低"
+    else:
+        confidence = "低"
+
+    return {
+        "enabled": True,
+        "tier": tier,
+        "basis": reason,
+        "sample_count": count,
+        "unit_price_low": round_number(low_u),
+        "unit_price_median": round_number(median_u),
+        "unit_price_high": round_number(high_u),
+        "average_unit_price": round_number(selected["average"]),
+        "confidence": confidence,
+        "note": (
+            "此為第二層行情參考，不等同正式市場判定；正式「高於／低於市場」仍要求至少3筆A/B/C主要可比成交。"
+            f" 本次依{reason}推估，共{count}筆。"
+        ),
+    }
+
+
+def fallback_price_band_from_estimate(listing, estimate):
+    """把第二層行情單價轉成房仲實戰可讀的總價區間。"""
+    if not estimate or not estimate.get("enabled"):
+        return {
+            "enabled": False,
+            "current_asking_price": round_number(listing.get("total_price")),
+            "market_reference_price_low": None,
+            "market_reference_price_high": None,
+            "reasonable_transaction_price_low": None,
+            "reasonable_transaction_price_high": None,
+            "buyer_offer_low": None,
+            "buyer_offer_high": None,
+            "seller_floor_low": None,
+            "seller_floor_high": None,
+            "confidence": "低",
+            "note": estimate.get("note") if estimate else "無第二層行情參考。",
+        }
+
+    median_u = to_float(estimate.get("unit_price_median"))
+    low_u = to_float(estimate.get("unit_price_low"))
+    high_u = to_float(estimate.get("unit_price_high"))
+    if median_u is None:
+        return {
+            "enabled": False,
+            "current_asking_price": round_number(listing.get("total_price")),
+            "market_reference_price_low": None,
+            "market_reference_price_high": None,
+            "reasonable_transaction_price_low": None,
+            "reasonable_transaction_price_high": None,
+            "buyer_offer_low": None,
+            "buyer_offer_high": None,
+            "seller_floor_low": None,
+            "seller_floor_high": None,
+            "confidence": "低",
+            "note": "第二層行情缺少有效單價。",
+        }
+
+    # 參考價：直接採第二層資料的低～高區間。
+    fair_low = total_price_from_unit_price(listing, low_u)
+    fair_high = total_price_from_unit_price(listing, high_u)
+
+    # 合理成交：中位數附近±2.5%。
+    tx_low = total_price_from_unit_price(listing, median_u * 0.975)
+    tx_high = total_price_from_unit_price(listing, median_u * 1.025)
+
+    # 買方策略：中位數下修約5%～10%。
+    buyer_low = total_price_from_unit_price(listing, median_u * 0.90)
+    buyer_high = total_price_from_unit_price(listing, median_u * 0.95)
+
+    # 賣方策略：合理成交附近，保留談價空間。
+    seller_low = total_price_from_unit_price(listing, median_u * 0.95)
+    seller_high = total_price_from_unit_price(listing, median_u * 1.00)
+
+    return {
+        "enabled": True,
+        "current_asking_price": round_number(listing.get("total_price")),
+        "market_reference_price_low": round_number(fair_low),
+        "market_reference_price_high": round_number(fair_high),
+        "reasonable_transaction_price_low": round_number(tx_low),
+        "reasonable_transaction_price_high": round_number(tx_high),
+        "buyer_offer_low": round_number(buyer_low),
+        "buyer_offer_high": round_number(buyer_high),
+        "seller_floor_low": round_number(seller_low),
+        "seller_floor_high": round_number(seller_high),
+        "confidence": estimate.get("confidence", "低"),
+        "basis": estimate.get("basis"),
+        "sample_count": estimate.get("sample_count", 0),
+        "note": "第二層行情推估僅供房仲實戰參考；仍應搭配屋況、採光、棟別、車位型式、裝潢及屋主急迫性。",
+    }
+
+
+def fallback_recommendations(listing, estimate):
+    """樣本不足時提供明確但帶信心標籤的買賣策略。"""
+    band = fallback_price_band_from_estimate(listing, estimate)
+    if not band.get("enabled"):
+        return {
+            "enabled": False,
+            "seller_price_low": None,
+            "seller_price_high": None,
+            "buyer_price_low": None,
+            "buyer_price_high": None,
+            "confidence": "低",
+            "note": band.get("note"),
+        }
+
+    return {
+        "enabled": True,
+        "seller_price_low": band.get("seller_floor_low"),
+        "seller_price_high": band.get("seller_floor_high"),
+        "buyer_price_low": band.get("buyer_offer_low"),
+        "buyer_price_high": band.get("buyer_offer_high"),
+        "confidence": band.get("confidence", "低"),
+        "basis": band.get("basis"),
+        "sample_count": band.get("sample_count", 0),
+        "note": "這是樣本不足時的第二層議價參考，不取代正式市場判定。",
+    }
+
 def analyze_listing(listing, transactions):
     comparable_data = find_comparables(listing, transactions)
     primary = comparable_data["primary"]
@@ -1487,7 +1704,7 @@ def analyze_listing(listing, transactions):
         for item in items:
             price = adjusted_transaction_unit_price(listing, item["transaction"])
             if price is not None and price > 0:
-                # 樣本權重 = 比價層級 × 相似度 × 近期性
+                # 樣本權重 = 比價層級 × 相似度 × 近期性 × 來源可靠度
                 base_weight = item["weight"]
                 time_weight = recency_weight(item["transaction"])
                 source_weight = source_reliability_weight(item["transaction"])
@@ -1532,6 +1749,21 @@ def analyze_listing(listing, transactions):
     same_address_count = sum(1 for row in comparable_rows if row["same_address"])
     same_unit_count = sum(1 for row in comparable_rows if row["same_unit"])
 
+    # 第28階段：正式樣本不足時啟用第二層行情推估。
+    fallback_estimate = fallback_market_estimate(
+        listing,
+        primary_rows,
+        reference_rows
+    )
+    fallback_pricing = fallback_price_band_from_estimate(
+        listing,
+        fallback_estimate
+    )
+    fallback_recommendation = fallback_recommendations(
+        listing,
+        fallback_estimate
+    )
+
     if not prices:
         return {
             "listing": listing,
@@ -1551,7 +1783,9 @@ def analyze_listing(listing, transactions):
                 "premium_percent": None,
                 "market": classify_market(None, 0),
                 "recommendations": calculate_recommendations(listing, None, None, None, 0),
-                "pricing_engine": price_band_from_market(listing, None, None, None, 0),
+                "fallback_recommendations": fallback_recommendation,
+                "pricing_engine": fallback_pricing,
+                "fallback_estimate": fallback_estimate,
                 "same_address_count": same_address_count,
                 "same_unit_count": same_unit_count,
                 "tier_counts": tier_counts,
@@ -1572,7 +1806,7 @@ def analyze_listing(listing, transactions):
     )
     pricing_engine = price_band_from_market(
         listing, market_median, q1, q3, sample_count
-    )
+    ) if sample_count >= 3 else fallback_pricing
 
     return {
         "listing": listing,
@@ -1592,7 +1826,9 @@ def analyze_listing(listing, transactions):
             "premium_percent": round_number(premium_percent),
             "market": market,
             "recommendations": recommendations,
+            "fallback_recommendations": fallback_recommendation,
             "pricing_engine": pricing_engine,
+            "fallback_estimate": fallback_estimate,
             "same_address_count": same_address_count,
             "same_unit_count": same_unit_count,
             "tier_counts": tier_counts,
@@ -1726,7 +1962,7 @@ def build_report(
     return {
         "generated_at": datetime.now().astimezone().isoformat(),
 
-        "stage": "第27階段：591成交資料庫＋時間衰減＋多層級比價＋房仲實戰定價引擎（A/B/C主要比價＋D行情參考＋E排除）",
+        "stage": "第28階段：591成交資料庫＋時間衰減＋多層級比價＋樣本不足第二層行情推估＋房仲實戰定價引擎（A/B/C主要比價＋D行情參考＋E排除）",
 
         "summary": {
             "listing_count": total,
@@ -1784,7 +2020,7 @@ def main():
     print()
     print("=" * 70)
     print(
-        "第27階段：591成交資料庫＋時間衰減＋多層級比價＋D行情參考＋Runner 路徑自動搜尋"
+        "第28階段：591成交資料庫＋時間衰減＋多層級比價＋樣本不足第二層行情推估＋D行情參考＋Runner 路徑自動搜尋"
     )
     print("=" * 70)
 
@@ -1849,6 +2085,7 @@ def main():
     )
     print("來源權重：MOI=1.00；591=0.90；未知來源=0.85")
     print("成交日期支援：YYYY-MM、YYYY-MM-DD、民國日期")
+    print("樣本不足時：啟用 A/B → A/B/C → D 同生活圈第二層行情推估；正式市場判定仍要求A/B/C至少3筆")
 
     print(
         f"🟢 低於市場："
