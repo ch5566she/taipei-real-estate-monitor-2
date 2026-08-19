@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-第十階段：每日房市專業報告＋市場判讀
+第十一階段：房市監控＋市場判讀＋房仲實戰決策
 
 功能：
 1. 讀取 data/taipei_transactions.csv
@@ -1101,6 +1101,326 @@ def build_history_chart(months, district):
 
 
 
+
+def calculate_window_change(months, window):
+    """
+    計算最近 N 個「有資料月份」的價格變化。
+    以第一個月份與最新月份的平均單價比較。
+    注意：月份可能不連續，因此標示為「最近N個有資料月份」。
+    """
+    valid = [
+        item for item in (months or [])
+        if item.get("average") is not None
+    ]
+
+    if len(valid) < 2:
+        return None
+
+    recent = valid[-window:] if len(valid) >= window else valid
+
+    first = to_float(recent[0].get("average"))
+    latest = to_float(recent[-1].get("average"))
+
+    if first in (None, 0) or latest is None:
+        return None
+
+    return (latest - first) / first * 100
+
+
+def get_recent_month_info(months, window=3):
+    """取得最近 N 個有資料月份的摘要。"""
+    valid = [
+        item for item in (months or [])
+        if item.get("average") is not None
+    ]
+
+    if not valid:
+        return {
+            "count": 0,
+            "start_month": None,
+            "end_month": None,
+            "change": None,
+            "latest_average": None,
+            "latest_count": 0,
+        }
+
+    recent = valid[-window:]
+    latest = recent[-1]
+
+    return {
+        "count": len(recent),
+        "start_month": recent[0].get("month"),
+        "end_month": latest.get("month"),
+        "change": calculate_window_change(valid, window),
+        "latest_average": latest.get("average"),
+        "latest_count": latest.get("count", 0),
+    }
+
+
+def build_decision_dashboard(report):
+    """
+    第11階段：房仲實戰決策儀表板。
+    所有數字與建議均依當日 report 動態計算。
+    """
+    districts = report.get("districts", {})
+    names = [n for n in TARGET_DISTRICTS if n in districts]
+
+    if not names:
+        return """
+        <section class="decision-dashboard">
+            <h2>🎯 房仲實戰決策儀表板</h2>
+            <div class="analysis-note">目前沒有足夠資料產生決策儀表板。</div>
+        </section>
+        """
+
+    metrics = {}
+
+    for district in names:
+        data = districts[district]
+        months = data.get("months", [])
+        stats = data.get("stats", {})
+        trend = data.get("trend", {})
+
+        recent3 = get_recent_month_info(months, 3)
+        recent6 = get_recent_month_info(months, 6)
+
+        metrics[district] = {
+            "count": stats.get("count", 0),
+            "average": stats.get("average_price"),
+            "median": stats.get("median_price"),
+            "trend": trend.get("direction", "資料不足"),
+            "trend_change": trend.get("change"),
+            "confidence": trend.get("confidence", "低"),
+            "recent3": recent3,
+            "recent6": recent6,
+        }
+
+    # --------------------------------------------------------
+    # 跨行政區比較
+    # --------------------------------------------------------
+    volume_rank = sorted(
+        names,
+        key=lambda n: metrics[n]["count"],
+        reverse=True,
+    )
+
+    price_rank = sorted(
+        names,
+        key=lambda n: (
+            metrics[n]["average"]
+            if metrics[n]["average"] is not None
+            else float("-inf")
+        ),
+        reverse=True,
+    )
+
+    recent_change_values = [
+        (n, metrics[n]["recent3"]["change"])
+        for n in names
+        if metrics[n]["recent3"]["change"] is not None
+    ]
+
+    if recent_change_values:
+        strongest = max(recent_change_values, key=lambda x: x[1])
+        weakest = min(recent_change_values, key=lambda x: x[1])
+    else:
+        strongest = weakest = None
+
+    total_volume = sum(metrics[n]["count"] for n in names)
+    volume_text = "；".join(
+        f"{n} {metrics[n]['count']:,}筆"
+        for n in volume_rank
+    )
+
+    if len(names) >= 2:
+        a, b = price_rank[0], price_rank[1]
+        avga = metrics[a]["average"]
+        avgb = metrics[b]["average"]
+
+        if avga is not None and avgb is not None and avgb != 0:
+            gap_pct = (avga - avgb) / avgb * 100
+            price_gap_text = (
+                f"{a}平均單價較{b}高 "
+                f"{gap_pct:+.2f}%。"
+            )
+        else:
+            price_gap_text = "兩區平均單價資料不足，暫無法比較。"
+    else:
+        price_gap_text = "目前只有一個行政區有資料。"
+
+    # --------------------------------------------------------
+    # 警示
+    # --------------------------------------------------------
+    alerts = []
+
+    for district in names:
+        m = metrics[district]
+        change3 = m["recent3"]["change"]
+        latest_count = m["recent3"]["latest_count"]
+
+        if change3 is not None and change3 <= -10:
+            alerts.append(
+                f"🔴 {district}最近3個有資料月份價格下跌 "
+                f"{abs(change3):.2f}%，應提高議價與定價風險注意。"
+            )
+        elif change3 is not None and change3 >= 10:
+            alerts.append(
+                f"🟢 {district}最近3個有資料月份價格上升 "
+                f"{change3:.2f}%，可留意高需求產品的價格支撐。"
+            )
+
+        if latest_count < 3:
+            alerts.append(
+                f"⚠️ {district}最新月份僅 {latest_count} 筆，"
+                "近期價格訊號可信度偏低。"
+            )
+
+    if not alerts:
+        alerts.append(
+            "🟡 目前沒有觸發明顯價格異常警示，仍應搭配路段與產品類型判讀。"
+        )
+
+    # --------------------------------------------------------
+    # 房仲實戰建議
+    # --------------------------------------------------------
+    if strongest and strongest[1] >= 5:
+        seller_advice = (
+            f"{strongest[0]}近期價格相對有支撐，可優先整理近期成交案例，"
+            "協助屋主建立合理售價區間。"
+        )
+    elif weakest and weakest[1] <= -5:
+        seller_advice = (
+            f"{weakest[0]}近期價格修正較明顯，賣方開價應更貼近實價，"
+            "並預留合理議價空間，以降低銷售週期。"
+        )
+    else:
+        seller_advice = (
+            "目前兩區沒有形成明顯單邊價格訊號，賣方應採「同路段、"
+            "同屋齡、同產品」三項條件比價後定價。"
+        )
+
+    if weakest and weakest[1] <= -5:
+        buyer_advice = (
+            f"買方可優先關注{weakest[0]}近期價格修正的物件，"
+            "但要排除低總價、特殊屋況或非主流產品造成的價格偏差。"
+        )
+    else:
+        buyer_advice = (
+            "買方宜以近期成交與同路段產品交叉比價，不宜只用行政區平均價判斷單一物件。"
+        )
+
+    # 路段開發重點：每區第一名
+    route_targets = []
+    for district in names:
+        routes = districts[district].get("routes", [])
+        if routes:
+            top = routes[0]
+            route_targets.append(
+                f"{district}：{top.get('route', '未命名路段')} "
+                f"（{top.get('count', 0)}筆／熱度 {money(top.get('heat'))}）"
+            )
+
+    route_text = "；".join(route_targets) if route_targets else "目前沒有足夠路段資料。"
+
+    # --------------------------------------------------------
+    # HTML
+    # --------------------------------------------------------
+    metric_cards = ""
+
+    for district in names:
+        m = metrics[district]
+        c3 = m["recent3"]["change"]
+        c6 = m["recent6"]["change"]
+
+        c3_text = "—" if c3 is None else f"{c3:+.2f}%"
+        c6_text = "—" if c6 is None else f"{c6:+.2f}%"
+
+        metric_cards += f"""
+        <div class="decision-card">
+            <div class="decision-card-title">{html_escape(district)}</div>
+            <div class="decision-row">
+                <span>交易量</span>
+                <strong>{m['count']:,} 筆</strong>
+            </div>
+            <div class="decision-row">
+                <span>平均單價</span>
+                <strong>{money(m['average'])} 萬／坪</strong>
+            </div>
+            <div class="decision-row">
+                <span>近3個有資料月份</span>
+                <strong>{c3_text}</strong>
+            </div>
+            <div class="decision-row">
+                <span>近6個有資料月份</span>
+                <strong>{c6_text}</strong>
+            </div>
+        </div>
+        """
+
+    alert_html = "".join(
+        f"<li>{html_escape(item)}</li>"
+        for item in alerts
+    )
+
+    return f"""
+    <section class="decision-dashboard">
+        <h2>🎯 房仲實戰決策儀表板</h2>
+
+        <div class="decision-summary">
+            <div class="decision-summary-card">
+                <div class="decision-summary-title">📊 交易量</div>
+                <div>{html_escape(volume_text)}</div>
+                <small>合計 {total_volume:,} 筆</small>
+            </div>
+
+            <div class="decision-summary-card">
+                <div class="decision-summary-title">💰 價格差距</div>
+                <div>{html_escape(price_gap_text)}</div>
+            </div>
+
+            <div class="decision-summary-card">
+                <div class="decision-summary-title">🔥 開發路段</div>
+                <div>{html_escape(route_text)}</div>
+            </div>
+        </div>
+
+        <div class="decision-metrics">
+            {metric_cards}
+        </div>
+
+        <div class="decision-grid">
+            <div class="decision-panel seller">
+                <h3>🏠 賣方策略</h3>
+                <p>{html_escape(seller_advice)}</p>
+            </div>
+
+            <div class="decision-panel buyer">
+                <h3>🔎 買方策略</h3>
+                <p>{html_escape(buyer_advice)}</p>
+            </div>
+
+            <div class="decision-panel developer">
+                <h3>📞 房仲開發重點</h3>
+                <p>
+                    優先追蹤交易量高、近期價格有明顯變化的路段，
+                    並將同路段成交案例整理成屋主可理解的價格帶。
+                    目前重點：{html_escape(route_text)}
+                </p>
+            </div>
+        </div>
+
+        <div class="decision-alerts">
+            <h3>🚨 今日市場警示</h3>
+            <ul>{alert_html}</ul>
+        </div>
+
+        <div class="analysis-note">
+            📌 本區塊為資料分析輔助，不代表單一物件的估價；實際委託開發仍應搭配屋齡、
+            樓層、格局、管理、車位、路段及個案成交條件。
+        </div>
+    </section>
+    """
+
 def build_market_comparison(report):
     """建立士林／北投比較分析與房仲市場判讀。"""
     districts = report.get("districts", {})
@@ -1328,6 +1648,7 @@ def create_html(report):
         </section>
     """
     market_analysis = build_market_comparison(report)
+    decision_dashboard = build_decision_dashboard(report)
 
     generated_at = report[
         "generated_at"
@@ -1816,6 +2137,125 @@ footer {{
 .history-value {{ fill: #1d4ed8; font-size: 11px; font-weight: bold; }}
 .no-chart-data {{ background: #f8fafc; color: #64748b; padding: 18px; border-radius: 10px; text-align: center; }}
 
+
+.decision-dashboard {{
+    margin: 25px 0 30px 0;
+    padding: 24px;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+}}
+
+.decision-dashboard h2 {{
+    margin-top: 0;
+}}
+
+.decision-summary {{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+}}
+
+.decision-summary-card {{
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px;
+    line-height: 1.7;
+}}
+
+.decision-summary-title {{
+    color: #1d4ed8;
+    font-weight: 700;
+    margin-bottom: 6px;
+}}
+
+.decision-summary-card small {{
+    color: #64748b;
+}}
+
+.decision-metrics {{
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+}}
+
+.decision-card {{
+    background: #f8fafc;
+    border: 1px solid #dbeafe;
+    border-radius: 10px;
+    padding: 16px;
+}}
+
+.decision-card-title {{
+    color: #0f172a;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 10px;
+}}
+
+.decision-row {{
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 0;
+    border-bottom: 1px solid #e5e7eb;
+}}
+
+.decision-row:last-child {{
+    border-bottom: 0;
+}}
+
+.decision-grid {{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin: 18px 0;
+}}
+
+.decision-panel {{
+    padding: 18px;
+    border-radius: 10px;
+    line-height: 1.8;
+}}
+
+.decision-panel h3 {{
+    margin-top: 0;
+}}
+
+.decision-panel.seller {{
+    background: #fff7ed;
+    border-left: 5px solid #f97316;
+}}
+
+.decision-panel.buyer {{
+    background: #eff6ff;
+    border-left: 5px solid #2563eb;
+}}
+
+.decision-panel.developer {{
+    background: #f0fdf4;
+    border-left: 5px solid #16a34a;
+}}
+
+.decision-alerts {{
+    margin-top: 18px;
+    padding: 18px;
+    background: #f8fafc;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+}}
+
+.decision-alerts h3 {{
+    margin-top: 0;
+}}
+
+.decision-alerts li {{
+    margin-bottom: 8px;
+}}
+
 @media(max-width:700px) {{
 
     .district {{
@@ -1858,6 +2298,8 @@ footer {{
 
         {market_analysis}
 
+        {decision_dashboard}
+
         {cards}
 
     </div>
@@ -1866,7 +2308,7 @@ footer {{
 
 台北市士林區／北投區房市監控系統<br>
 
-第十階段：每日房市專業報告＋市場判讀
+第十一階段：房市監控＋市場判讀＋房仲實戰決策
 
 </footer>
 
