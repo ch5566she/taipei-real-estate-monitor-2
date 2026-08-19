@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-第29階段：房仲實戰價格決策引擎
+第32階段：房仲實戰價格決策引擎 V3
 多層級可比成交版
 
 功能：
@@ -110,6 +110,14 @@ OUTPUT_FIELDS = [
     "seller_reasonable_price",
     "negotiation_percent",
     "price_grade",
+    "confidence",
+    "core_comparable_count",
+    "grade_a_count",
+    "grade_b_count",
+    "grade_c_count",
+    "excluded_count",
+    "weighted_market_unit_price",
+    "comparable_grade_summary",
 ]
 
 
@@ -877,6 +885,11 @@ def load_transactions():
             ):
                 source = "MOI"
 
+            special = special_transaction_info(row)
+
+            if special["excluded"]:
+                continue
+
             transactions.append({
 
                 "id":
@@ -949,9 +962,66 @@ def load_transactions():
 
                 "date":
                     transaction_date,
+
+                "related":
+                    special["related"],
+
+                "special":
+                    special["special"],
+
+                "expansion":
+                    special["expansion"],
+
+                "pre_sale":
+                    special["pre_sale"],
             })
 
     return transactions
+
+
+# ============================================================
+# V3：特殊交易／異常資料判斷
+# ============================================================
+
+def special_transaction_info(row):
+    """判斷關係人、特殊交易、增建等風險訊號。"""
+    values = []
+    for key in (
+        "note", "remark", "remarks", "memo", "case_remark",
+        "case_note", "case_f", "case_t", "case_type", "building_type",
+        "buitype", "parktype"
+    ):
+        values.append(normalize_text(row.get(key)))
+    blob = "|".join(v for v in values if v)
+
+    relation = any(x in blob for x in ("關係人", "親友", "二親等", "三親等"))
+    special = any(x in blob for x in ("特殊交易", "親友交易", "特殊關係", "毛胚", "毛坯"))
+    expansion = any(x in blob for x in ("陽台外推", "增建", "未保存登記", "頂樓加蓋"))
+    pre_sale = any(x in blob for x in ("預售", "預售屋", "讓渡"))
+    land_only = normalize_text(row.get("case_f")) in ("土地", "車位")
+
+    return {
+        "related": relation,
+        "special": special,
+        "expansion": expansion,
+        "pre_sale": pre_sale,
+        "excluded": land_only,
+    }
+
+
+def confidence_from_comparables(comparables):
+    if not comparables:
+        return "低"
+    a = sum(1 for x in comparables if x["tier"] == "A")
+    b = sum(1 for x in comparables if x["tier"] == "B")
+    n = len(comparables)
+    if a >= 1 and n >= 3:
+        return "高"
+    if (a + b) >= 2 and n >= 3:
+        return "中高"
+    if n >= 5:
+        return "中"
+    return "低"
 
 
 # ============================================================
@@ -962,204 +1032,86 @@ def score_transaction(
     listing,
     transaction
 ):
+    """V3 分級可比：A/B/C，並對特殊交易降權或排除。"""
 
-    # --------------------------------------------------------
-    # 行政區必須相同
-    # --------------------------------------------------------
-
-    if (
-        transaction["district"]
-        != listing["district"]
-    ):
+    if transaction["district"] != listing["district"]:
         return None
 
-    # --------------------------------------------------------
-    # 坪數差異
-    # --------------------------------------------------------
-
-    area_ratio = (
-        abs(
-            transaction["area"]
-            - listing["area"]
-        )
-        / listing["area"]
-    )
-
-    # 最大放寬 35%
-    if area_ratio > 0.35:
+    # 關係人／預售等非典型成交不直接進入估價樣本
+    if transaction.get("related") or transaction.get("special") or transaction.get("pre_sale"):
         return None
 
-    # --------------------------------------------------------
-    # 同門牌
-    # --------------------------------------------------------
+    area_ratio = abs(transaction["area"] - listing["area"]) / listing["area"]
+    if area_ratio > 0.30:
+        return None
 
     same_address = (
-        bool(
-            listing["location"]
-        )
-        and bool(
-            transaction["address"]
-        )
-        and address_key(
-            listing["location"]
-        )
-        == transaction["address"]
+        bool(listing["location"])
+        and bool(transaction["address"])
+        and address_key(listing["location"]) == transaction["address"]
     )
-
-    # --------------------------------------------------------
-    # 同樓層
-    # --------------------------------------------------------
 
     same_floor = (
         listing["floor"] is not None
         and transaction["floor"] is not None
-        and listing["floor"]
-        == transaction["floor"]
+        and listing["floor"] == transaction["floor"]
     )
-
-    # --------------------------------------------------------
-    # 同路段
-    # --------------------------------------------------------
 
     same_street = (
-        bool(
-            street_key(
-                listing["location"]
-            )
-        )
-        and bool(
-            transaction["street"]
-        )
-        and street_key(
-            listing["location"]
-        )
-        == transaction["street"]
+        bool(street_key(listing["location"]))
+        and bool(transaction["street"])
+        and street_key(listing["location"]) == transaction["street"]
     )
-
-    # --------------------------------------------------------
-    # 同建物型態
-    # --------------------------------------------------------
 
     same_type = (
-        listing["type"]
-        == "其他"
-        or transaction["type"]
-        == "其他"
-        or listing["type"]
-        == transaction["type"]
+        listing["type"] == "其他"
+        or transaction["type"] == "其他"
+        or listing["type"] == transaction["type"]
     )
-
-    # --------------------------------------------------------
-    # 車位條件
-    # --------------------------------------------------------
 
     parking_same = (
         listing["parking"] is None
         or transaction["parking"] is None
-        or listing["parking"]
-        == transaction["parking"]
+        or listing["parking"] == transaction["parking"]
     )
 
-    # ========================================================
-    # 比價層級
-    # ========================================================
-
-    if (
-        same_address
-        and same_floor
-    ):
-
+    # A：同門牌＋同樓層；B：同門牌；C：同路段＋坪數；D：同區＋坪數
+    if same_address and same_floor:
         tier = "A"
-        base_weight = 1.40
-
+        base_weight = 2.00
     elif same_address:
-
         tier = "B"
-        base_weight = 1.25
-
-    elif (
-        same_street
-        and area_ratio <= 0.20
-    ):
-
+        base_weight = 1.55
+    elif same_street and area_ratio <= 0.20 and same_type:
         tier = "C"
         base_weight = 1.00
-
-    elif area_ratio <= 0.20:
-
+    elif area_ratio <= 0.20 and same_type:
         tier = "D"
-        base_weight = 0.78
-
-    elif area_ratio <= 0.35:
-
-        tier = "E"
-        base_weight = 0.60
-
+        base_weight = 0.55
     else:
-
         return None
 
-    # ========================================================
-    # 型態校正
-    # ========================================================
-
-    if same_type:
-        type_factor = 1.00
-    else:
-        type_factor = 0.55
-
-    # ========================================================
-    # 車位校正
-    # ========================================================
-
-    if parking_same:
-        parking_factor = 1.00
-    else:
-        parking_factor = 0.85
-
-    # ========================================================
-    # 坪數校正
-    # ========================================================
-
-    area_factor = max(
-        0.55,
-        1.0 - area_ratio
-    )
-
-    # ========================================================
-    # 樓層校正
-    # ========================================================
+    # 特殊增建不作完全排除，但降低權重；若同時是核心 A/B，仍可作提示性參考
+    expansion_factor = 0.65 if transaction.get("expansion") else 1.0
+    type_factor = 1.0 if same_type else 0.55
+    parking_factor = 1.0 if parking_same else 0.85
+    area_factor = max(0.55, 1.0 - area_ratio)
 
     floor_factor = 1.0
+    if listing["floor"] is not None and transaction["floor"] is not None:
+        floor_difference = abs(listing["floor"] - transaction["floor"])
+        floor_factor = max(0.82, 1.0 - floor_difference * 0.025)
 
-    if (
-        listing["floor"]
-        and transaction["floor"]
-    ):
+    # 若有屋齡資料，近似以 10 年差距逐步降低權重；缺資料不扣分
+    age_factor = 1.0
+    if listing.get("age") is not None and transaction.get("age") is not None:
+        age_difference = abs(listing["age"] - transaction["age"])
+        age_factor = max(0.70, 1.0 - age_difference * 0.025)
 
-        floor_difference = abs(
-            listing["floor"]
-            - transaction["floor"]
-        )
+    time_factor = recency_weight(transaction["date"])
 
-        floor_factor = max(
-            0.82,
-            1.0
-            - floor_difference
-            * 0.025
-        )
-
-    # ========================================================
-    # 時間權重
-    # ========================================================
-
-    time_factor = recency_weight(
-        transaction["date"]
-    )
-
-    # ========================================================
-    # 最終權重
-    # ========================================================
+    # 591同門牌同樓層是核心案例，給來源加成，但不凌駕交易品質
+    source_factor = 1.08 if transaction.get("source") == "591" else 1.0
 
     final_weight = (
         base_weight
@@ -1167,49 +1119,24 @@ def score_transaction(
         * parking_factor
         * area_factor
         * floor_factor
+        * age_factor
         * time_factor
+        * expansion_factor
+        * source_factor
     )
 
-    # ========================================================
-    # 校正後單價
-    # ========================================================
-
-    adjusted_unit = (
-        transaction["unit"]
-        * floor_factor
-    )
+    adjusted_unit = transaction["unit"] * floor_factor
 
     return {
-
-        "score":
-            round(
-                final_weight * 100,
-                2
-            ),
-
-        "weight":
-            final_weight,
-
-        "tier":
-            tier,
-
-        "same_address":
-            same_address,
-
-        "same_floor":
-            same_floor,
-
-        "same_street":
-            same_street,
-
-        "area_ratio":
-            area_ratio,
-
-        "adjusted_unit":
-            adjusted_unit,
-
-        "tx":
-            transaction,
+        "score": round(final_weight * 100, 2),
+        "weight": final_weight,
+        "tier": tier,
+        "same_address": same_address,
+        "same_floor": same_floor,
+        "same_street": same_street,
+        "area_ratio": area_ratio,
+        "adjusted_unit": adjusted_unit,
+        "tx": transaction,
     }
 
 
@@ -1413,6 +1340,30 @@ def make_empty_decision(
 
         "price_grade":
             "樣本不足",
+
+        "confidence":
+            "低",
+
+        "core_comparable_count":
+            0,
+
+        "grade_a_count":
+            0,
+
+        "grade_b_count":
+            0,
+
+        "grade_c_count":
+            0,
+
+        "excluded_count":
+            0,
+
+        "weighted_market_unit_price":
+            None,
+
+        "comparable_grade_summary":
+            "A0/B0/C0",
     }
 
 
@@ -1424,364 +1375,141 @@ def decision_for_listing(
     listing,
     transactions
 ):
+    comparables = find_comparables(listing, transactions)
 
-    comparables = find_comparables(
-        listing,
-        transactions
-    )
-
-    current_price = (
-        listing["price"]
-    )
-
-    current_unit = (
-        listing["unit"]
-    )
-
-    # ========================================================
-    # 完全沒有案例
-    # ========================================================
+    current_price = listing["price"]
+    current_unit = listing["unit"]
 
     if not comparables:
+        result = make_empty_decision(listing)
+        result.update({
+            "confidence": "低",
+            "core_comparable_count": 0,
+            "grade_a_count": 0,
+            "grade_b_count": 0,
+            "grade_c_count": 0,
+            "excluded_count": 0,
+            "weighted_market_unit_price": None,
+            "comparable_grade_summary": "A0/B0/C0",
+        })
+        return result
 
-        return make_empty_decision(
-            listing
-        )
-
-    # ========================================================
-    # 可比單價
-    # ========================================================
-
-    adjusted_units = [
-        item["adjusted_unit"]
-        for item in comparables
-    ]
-
-    weights = [
-        item["weight"]
-        for item in comparables
-    ]
-
+    adjusted_units = [item["adjusted_unit"] for item in comparables]
+    weights = [item["weight"] for item in comparables]
     transaction_totals = [
-        item["tx"]["price"]
-        for item in comparables
-        if (
-            item["tx"]["price"]
-            and item["tx"]["price"] > 0
-        )
+        item["tx"]["price"] for item in comparables
+        if item["tx"]["price"] and item["tx"]["price"] > 0
     ]
 
-    median_unit = median(
-        adjusted_units
-    )
+    median_unit = median(adjusted_units)
+    weighted_unit = weighted_median(list(zip(adjusted_units, weights)))
+    median_total = median(transaction_totals) if transaction_totals else None
 
-    weighted_unit = weighted_median(
-        list(
-            zip(
-                adjusted_units,
-                weights
-            )
-        )
-    )
+    # V3：加權中位數 70% + 一般中位數 30%，避免低品質案例過度拉動結果
+    fair_unit = weighted_unit * 0.70 + median_unit * 0.30
+    fair_price = fair_unit * listing["area"]
 
-    median_total = (
-        median(
-            transaction_totals
-        )
-        if transaction_totals
-        else None
-    )
+    comparable_count = len(comparables)
+    a_count = sum(1 for x in comparables if x["tier"] == "A")
+    b_count = sum(1 for x in comparables if x["tier"] == "B")
+    c_count = sum(1 for x in comparables if x["tier"] == "C")
+    confidence = confidence_from_comparables(comparables)
 
-    # ========================================================
-    # 最終公平單價
-    #
-    # 50% 一般中位數
-    # 50% 加權中位數
-    # ========================================================
-
-    fair_unit = (
-        median_unit
-        + weighted_unit
-    ) / 2
-
-    fair_price = (
-        fair_unit
-        * listing["area"]
-    )
-
-    comparable_count = len(
-        comparables
-    )
-
-    # ========================================================
-    # 少於3筆
-    # ========================================================
-
-    if (
-        comparable_count
-        < MIN_COMPARABLES
-    ):
-
-        price_gap = (
-            (
-                current_unit
-                / median_unit
-            )
-            - 1
-        ) * 100
-
+    # 3 筆以下仍不輸出精確議價區間
+    if comparable_count < MIN_COMPARABLES:
+        price_gap = ((current_unit / fair_unit) - 1) * 100
         return {
-
-            "listing_id":
-                listing["listing_id"],
-
-            "district":
-                listing["district"],
-
-            "location":
-                listing["location"],
-
-            "title":
-                listing["title"],
-
-            "current_price":
-                money(
-                    current_price
-                ),
-
-            "current_unit_price":
-                money(
-                    current_unit
-                ),
-
-            "comparable_count":
-                comparable_count,
-
-            "median_transaction_price":
-                money(
-                    median_total
-                ),
-
-            "median_transaction_unit_price":
-                money(
-                    median_unit
-                ),
-
-            "price_gap_percent":
-                money(
-                    price_gap
-                ),
-
-            "reasonable_low_price":
-                None,
-
-            "reasonable_high_price":
-                None,
-
-            "buyer_first_price":
-                None,
-
-            "buyer_max_price":
-                None,
-
-            "seller_reasonable_price":
-                None,
-
-            "negotiation_percent":
-                None,
-
-            "price_grade":
-                "樣本不足",
+            "listing_id": listing["listing_id"],
+            "district": listing["district"],
+            "location": listing["location"],
+            "title": listing["title"],
+            "current_price": money(current_price),
+            "current_unit_price": money(current_unit),
+            "comparable_count": comparable_count,
+            "median_transaction_price": money(median_total),
+            "median_transaction_unit_price": money(median_unit),
+            "price_gap_percent": money(price_gap),
+            "reasonable_low_price": None,
+            "reasonable_high_price": None,
+            "buyer_first_price": None,
+            "buyer_max_price": None,
+            "seller_reasonable_price": None,
+            "negotiation_percent": None,
+            "price_grade": "樣本不足",
+            "confidence": confidence,
+            "core_comparable_count": a_count + b_count,
+            "grade_a_count": a_count,
+            "grade_b_count": b_count,
+            "grade_c_count": c_count,
+            "excluded_count": 0,
+            "weighted_market_unit_price": money(weighted_unit),
+            "comparable_grade_summary": f"A{a_count}/B{b_count}/C{c_count}",
         }
 
-    # ========================================================
-    # 樣本3～10筆
-    # ========================================================
-
-    if comparable_count >= 6:
-
+    # 可比越多、核心案例越多，區間越窄；信心度低則放寬
+    if a_count >= 1 and comparable_count >= 4:
         spread = 0.10
-
+    elif comparable_count >= 6:
+        spread = 0.11
     elif comparable_count >= 4:
-
-        spread = 0.13
-
+        spread = 0.14
     else:
+        spread = 0.17
 
-        spread = 0.16
+    if confidence == "低":
+        spread += 0.03
 
-    # ========================================================
-    # 合理價格區間
-    # ========================================================
+    low_unit = fair_unit * (1 - spread)
+    high_unit = fair_unit * (1 + spread)
+    low_price = low_unit * listing["area"]
+    high_price = high_unit * listing["area"]
 
-    low_unit = (
-        fair_unit
-        * (1 - spread)
-    )
-
-    high_unit = (
-        fair_unit
-        * (1 + spread)
-    )
-
-    low_price = (
-        low_unit
-        * listing["area"]
-    )
-
-    high_price = (
-        high_unit
-        * listing["area"]
-    )
-
-    # ========================================================
-    # 買方策略
-    # ========================================================
-
-    buyer_first_price = (
-        low_price
-        * 0.95
-    )
-
-    buyer_max_price = (
-        high_price
-        * 0.98
-    )
-
-    # ========================================================
-    # 賣方合理價
-    # ========================================================
-
-    seller_reasonable_price = (
-        high_price
-    )
-
-    # ========================================================
-    # 議價空間
-    # ========================================================
+    buyer_first_price = low_price * 0.95
+    buyer_max_price = high_price * 0.98
+    seller_reasonable_price = high_price
 
     negotiation_percent = max(
         0.0,
-        (
-            (
-                current_price
-                - buyer_max_price
-            )
-            / current_price
-        )
-        * 100
+        ((current_price - buyer_max_price) / current_price) * 100
     )
 
-    # ========================================================
-    # 開價與合理單價差距
-    # ========================================================
-
-    price_gap_percent = (
-        (
-            current_unit
-            / fair_unit
-        )
-        - 1
-    ) * 100
-
-    # ========================================================
-    # 價格等級
-    # ========================================================
+    price_gap_percent = ((current_unit / fair_unit) - 1) * 100
 
     if price_gap_percent >= 15:
-
         price_grade = "價格過高"
-
     elif price_gap_percent >= 7:
-
         price_grade = "偏高"
-
     elif price_gap_percent <= -7:
-
         price_grade = "價格偏低"
-
     else:
-
         price_grade = "接近市場"
 
-    # ========================================================
-    # 輸出
-    # ========================================================
-
     return {
-
-        "listing_id":
-            listing["listing_id"],
-
-        "district":
-            listing["district"],
-
-        "location":
-            listing["location"],
-
-        "title":
-            listing["title"],
-
-        "current_price":
-            money(
-                current_price
-            ),
-
-        "current_unit_price":
-            money(
-                current_unit
-            ),
-
-        "comparable_count":
-            comparable_count,
-
-        "median_transaction_price":
-            money(
-                median_total
-            ),
-
-        "median_transaction_unit_price":
-            money(
-                median_unit
-            ),
-
-        "price_gap_percent":
-            money(
-                price_gap_percent
-            ),
-
-        "reasonable_low_price":
-            money(
-                low_price
-            ),
-
-        "reasonable_high_price":
-            money(
-                high_price
-            ),
-
-        "buyer_first_price":
-            money(
-                buyer_first_price
-            ),
-
-        "buyer_max_price":
-            money(
-                buyer_max_price
-            ),
-
-        "seller_reasonable_price":
-            money(
-                seller_reasonable_price
-            ),
-
-        "negotiation_percent":
-            money(
-                negotiation_percent
-            ),
-
-        "price_grade":
-            price_grade,
+        "listing_id": listing["listing_id"],
+        "district": listing["district"],
+        "location": listing["location"],
+        "title": listing["title"],
+        "current_price": money(current_price),
+        "current_unit_price": money(current_unit),
+        "comparable_count": comparable_count,
+        "median_transaction_price": money(median_total),
+        "median_transaction_unit_price": money(median_unit),
+        "price_gap_percent": money(price_gap_percent),
+        "reasonable_low_price": money(low_price),
+        "reasonable_high_price": money(high_price),
+        "buyer_first_price": money(buyer_first_price),
+        "buyer_max_price": money(buyer_max_price),
+        "seller_reasonable_price": money(seller_reasonable_price),
+        "negotiation_percent": money(negotiation_percent),
+        "price_grade": price_grade,
+        "confidence": confidence,
+        "core_comparable_count": a_count + b_count,
+        "grade_a_count": a_count,
+        "grade_b_count": b_count,
+        "grade_c_count": c_count,
+        "excluded_count": 0,
+        "weighted_market_unit_price": money(weighted_unit),
+        "comparable_grade_summary": f"A{a_count}/B{b_count}/C{c_count}",
     }
 
 
@@ -1872,6 +1600,8 @@ def main():
             f"{listing['listing_id']} | "
             f"{listing['location']} | "
             f"可比 {result['comparable_count']} 筆 | "
+            f"{result.get('comparable_grade_summary', '')} | "
+            f"信心 {result.get('confidence', '低')} | "
             f"{result['price_grade']}"
         )
 
