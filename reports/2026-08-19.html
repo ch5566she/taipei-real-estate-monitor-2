@@ -768,7 +768,7 @@ footer {
 
 <p>
 產生時間：
-2026-08-19 22:45:26
+2026-08-19 23:10:44
 </p>
 
 <p>
@@ -1663,18 +1663,66 @@ footer {
     
 
         
-        <section class="stage17">
-            <h2>🔥 第17階段｜今日房仲在售物件開發雷達</h2>
-            <div class="stage17-focus">
-                <strong>目前尚未接入在售物件資料。</strong><br>
-                系統已保留完整介面；下一次只要把在售資料放入指定 CSV，便會自動產生「在售開價 × 成交中位價 × 路段熱度 × 開發分數 Top 10」。
-            </div>
-            <div class="stage17-note">
-                預設資料位置：data/current_listings.csv、data/on_sale.csv、data/591_listings.csv 或 data/listings.csv。<br>
-                ⚠️ 沒有在售資料時，本階段不捏造任何物件、不假設目前在售，也不判定屋主身份。
-            </div>
-        </section>
+    <section class="stage17">
+        <h2>🔥 第17階段｜今日房仲在售物件開發雷達 Top 10</h2>
+        <div class="stage17-summary-grid">
+            <div class="stage17-summary-card"><div class="stage17-summary-title">🏠 在售資料</div><strong>2 筆</strong><small>來源：data/current_listings.csv</small></div>
+            <div class="stage17-summary-card"><div class="stage17-summary-title">🎯 第一優先</div><strong>91.0</strong><small>北投區｜北科路</small></div>
+            <div class="stage17-summary-card"><div class="stage17-summary-title">📊 比價基準</div><strong>可比</strong><small>同路段成交中位價</small></div>
+        </div>
+        <div class="stage17-focus">
+            <strong>🎯 今日第一優先物件：</strong>
+            北投區 × 北科路 × 測試房源B<br>
+            <strong>開價：</strong>92.72 萬／坪；
+            <strong>同路段成交中位價：</strong>112.02 萬／坪；
+            <strong>價格偏離：</strong>-17.2%；
+            <strong>開發分數：</strong>91.0<br>
+            <strong>為什麼：</strong>開價低於同路段成交中位價17.2%；同路段近期成交樣本11筆<br>
+            <strong>建議：</strong>優先檢查同類型成交條件與產品差異；建立同路段價格帶與競品清單
+        </div>
+        <div class="table-scroll">
+        <table class="stage17-table">
+            <tr>
+                <th>排名</th><th>行政區</th><th>路段／物件</th><th>總價</th><th>坪數</th>
+                <th>目前開價</th><th>成交中位</th><th>價格偏離</th><th>路段熱度</th><th>開發分數</th><th>開發訊號</th>
+            </tr>
+            
+        <tr>
+            <td><strong>#1</strong></td>
+            <td>北投區</td>
+            <td>北科路<br><small>測試房源B</small></td>
+            <td>2,800</td>
+            <td>30.2</td>
+            <td>92.72</td>
+            <td>112.02</td>
+            <td>-17.2%</td>
+            <td>11筆<br>0.00</td>
+            <td><strong>91.0</strong><br><small>A｜優先研究</small></td>
+            <td>開價低於同路段成交中位價17.2%；同路段近期成交樣本11筆</td>
+        </tr>
         
+        <tr>
+            <td><strong>#2</strong></td>
+            <td>士林區</td>
+            <td>中山北路五段<br><small>測試房源A</small></td>
+            <td>3,200</td>
+            <td>38.5</td>
+            <td>83.12</td>
+            <td>84.28</td>
+            <td>-1.4%</td>
+            <td>4筆<br>0.00</td>
+            <td><strong>61.0</strong><br><small>B｜本週追蹤</small></td>
+            <td>同路段近期成交樣本4筆</td>
+        </tr>
+        
+        </table>
+        </div>
+        <div class="stage17-note">
+            📌 本階段是「目前在售物件的市場機會／競品研究排序」，不是單一物件正式估價，也不是屋主身份判定。<br>
+            若資料來源是仲介公開物件，系統會將其視為市場競品；只有來源明確標示屋主資訊時，才可另行處理聯絡資訊。
+        </div>
+    </section>
+    
 
         
     <section class="stage12">

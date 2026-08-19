@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-19 22:45:26",
+  "generated_at": "2026-08-19 23:10:44",
   "districts": {
     "士林區": {
       "stats": {
@@ -1174,10 +1174,69 @@
     "note": "目前以實價成交個案作為同路段／同類型屋主開發線索；尚未接入591等在售物件資料，因此不判定物件目前是否在售。"
   },
   "listing_radar": {
-    "source": null,
-    "count": 0,
-    "connected": false,
-    "top10": [],
-    "note": "尚未接入目前在售物件資料；目前報告不判定任何個別在售物件。"
+    "source": "data/current_listings.csv",
+    "count": 2,
+    "connected": true,
+    "top10": [
+      {
+        "district": "北投區",
+        "route": "北科路",
+        "location": "北科路",
+        "title": "測試房源B",
+        "url": "",
+        "unit_price": 92.72,
+        "total_price": 2800.0,
+        "area": 30.2,
+        "build_type": "",
+        "rooms": "3",
+        "age": 8.0,
+        "route_median": 112.02,
+        "district_median": 106.43,
+        "route_gap": -17.229066238171754,
+        "district_gap": -12.881706285821673,
+        "route_heat": 0.0,
+        "route_transaction_count": 11,
+        "score": 91,
+        "priority": "A｜優先研究",
+        "reasons": [
+          "開價低於同路段成交中位價17.2%",
+          "同路段近期成交樣本11筆"
+        ],
+        "actions": [
+          "優先檢查同類型成交條件與產品差異",
+          "建立同路段價格帶與競品清單"
+        ],
+        "rank": 1
+      },
+      {
+        "district": "士林區",
+        "route": "中山北路五段",
+        "location": "中山北路五段",
+        "title": "測試房源A",
+        "url": "",
+        "unit_price": 83.12,
+        "total_price": 3200.0,
+        "area": 38.5,
+        "build_type": "",
+        "rooms": "3",
+        "age": 15.0,
+        "route_median": 84.285,
+        "district_median": 78.93,
+        "route_gap": -1.382215103517817,
+        "district_gap": 5.308501203598122,
+        "route_heat": 0.0,
+        "route_transaction_count": 4,
+        "score": 61.0,
+        "priority": "B｜本週追蹤",
+        "reasons": [
+          "同路段近期成交樣本4筆"
+        ],
+        "actions": [
+          "建立同路段價格帶與競品清單"
+        ],
+        "rank": 2
+      }
+    ],
+    "note": "在售物件多數屬市場競品資料；除非來源明確提供屋主資訊，系統不判定屋主身份。價格比較亦非正式估價。"
   }
 }
