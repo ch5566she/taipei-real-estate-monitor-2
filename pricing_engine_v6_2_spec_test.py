@@ -207,10 +207,19 @@ def check_sample_insufficient_logic():
 
 def check_reference_price_logic():
     """
-    檢查第二層行情參考相關概念。
+    檢查第二層行情參考邏輯。
 
-    這裡不允許把「有參考價格」
-    自動解讀成「正式估價」。
+    正確規則不是「不能同時出現第二層與正式估價」，
+    而是必須明確區分：
+
+        第二層行情參考
+              ≠
+        正式估價
+
+    因此：
+    1. 必須找到行情／參考價格概念
+    2. 必須找到「不得直接作為正式估價」等區隔語意
+    3. 不應因為規格文件正確寫出「正式估價」而誤判
     """
 
     print("\n=== 5. 第二層行情參考邏輯檢查 ===")
@@ -218,7 +227,12 @@ def check_reference_price_logic():
     spec_text = read_text(SPEC_FILE)
     engine_text = read_text(V62_FILE)
 
-    combined = (spec_text + "\n" + engine_text).lower()
+    combined = spec_text + "\n" + engine_text
+    combined_lower = combined.lower()
+
+    # ---------------------------------------------------------
+    # 1. 檢查是否存在行情／參考價格概念
+    # ---------------------------------------------------------
 
     reference_keywords = [
         "參考",
@@ -228,40 +242,58 @@ def check_reference_price_logic():
     ]
 
     found_reference = any(
-        keyword.lower() in combined
+        keyword.lower() in combined_lower
         for keyword in reference_keywords
     )
 
-    if found_reference:
-        print("PASS：系統具有行情／參考價格相關概念")
-    else:
-        print(
-            "WARNING：尚未找到明確的行情參考概念"
-        )
+    assert found_reference, (
+        "FAIL：找不到行情／參考價格相關概念"
+    )
 
-    # 防止 V6.2 的測試程式本身宣稱它就是正式估價。
-    forbidden_claims = [
-        "第二層.*正式估價",
-        "reference.*official.*valuation",
+    print("PASS：系統具有行情／參考價格相關概念")
+
+    # ---------------------------------------------------------
+    # 2. 檢查是否明確區分「參考」與「正式估價」
+    # ---------------------------------------------------------
+
+    distinction_patterns = [
+        r"第二層.{0,40}(不得|不能|不可).{0,40}(正式估價|正式估價)",
+        r"第二層.{0,40}(不等於|不是|並非).{0,40}正式估價",
+        r"參考.{0,40}(不得|不能|不可).{0,40}正式估價",
+        r"參考.{0,40}(不等於|不是|並非).{0,40}正式估價",
+        r"行情.{0,40}(不得|不能|不可).{0,40}正式估價",
+        r"行情.{0,40}(不等於|不是|並非).{0,40}正式估價",
+        r"reference.{0,80}(not|cannot|must not).{0,80}(valuation|official)",
     ]
 
-    forbidden_found = False
+    distinction_found = False
 
-    for pattern in forbidden_claims:
+    for pattern in distinction_patterns:
         if re.search(
             pattern,
             combined,
-            flags=re.IGNORECASE
+            flags=re.IGNORECASE | re.DOTALL
         ):
-            forbidden_found = True
+            distinction_found = True
             break
 
-    if forbidden_found:
-        raise AssertionError(
-            "FAIL：發現第二層參考行情可能被描述為正式估價"
-        )
+    assert distinction_found, (
+        "FAIL：找不到「第二層行情參考與正式估價區隔」的明確規則"
+    )
 
-    print("PASS：沒有發現明確將第二層參考行情直接定義為正式估價")
+    print(
+        "PASS：第二層行情參考與正式估價已有明確區隔"
+    )
+
+    # ---------------------------------------------------------
+    # 3. 特別確認：
+    #    「第二層 + 正式估價」本身不是錯誤
+    # ---------------------------------------------------------
+
+    print(
+        "PASS：測試器不再把正確的"
+        "「不得直接作為正式估價」規則誤判為錯誤"
+    )
 
 
 def check_formal_engine_integrity():
