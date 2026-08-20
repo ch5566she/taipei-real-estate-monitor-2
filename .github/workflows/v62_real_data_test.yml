@@ -1,0 +1,147 @@
+name: 測試 V6.2 真實房市資料
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-v62-real-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 下載專案程式
+        uses: actions/checkout@v4
+
+      - name: 設定 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 檢查 Python 版本
+        run: python --version
+
+      - name: 檢查 V6.2 程式
+        run: |
+          test -f pricing_engine_v6_2.py
+          python -m py_compile pricing_engine_v6_2.py
+          echo "V6.2 Python 語法檢查通過"
+
+      - name: 檢查房市資料
+        run: |
+          test -f data/current_listings.csv
+          test -f data/591_transactions.csv
+          test -f data/taipei_transactions.csv
+
+          echo "資料檔案檢查通過"
+          echo "current_listings.csv:"
+          wc -l data/current_listings.csv
+
+          echo "591_transactions.csv:"
+          wc -l data/591_transactions.csv
+
+          echo "taipei_transactions.csv:"
+          wc -l data/taipei_transactions.csv
+
+      - name: 執行 V6.2 真實資料估價
+        run: |
+          python pricing_engine_v6_2.py
+
+      - name: 檢查估價結果
+        run: |
+          test -f data/pricing_decisions.csv
+
+          echo "pricing_decisions.csv 已產生"
+          echo "資料筆數："
+          wc -l data/pricing_decisions.csv
+
+          echo "欄位："
+          head -n 1 data/pricing_decisions.csv
+
+      - name: 驗證 V6.2 新增欄位
+        run: |
+          python - <<'PY'
+          import csv
+
+          path = "data/pricing_decisions.csv"
+
+          required = [
+              "sample_quality_score",
+              "sample_quality_grade",
+              "formal_valuation_eligible",
+              "formal_valuation_reason",
+              "market_reference_level",
+              "market_reference_confidence",
+              "v62_warning",
+          ]
+
+          with open(path, encoding="utf-8-sig", newline="") as f:
+              reader = csv.DictReader(f)
+              fields = reader.fieldnames or []
+
+          missing = [x for x in required if x not in fields]
+
+          if missing:
+              print("缺少欄位：", missing)
+              raise SystemExit(1)
+
+          print("V6.2 新增欄位全部存在")
+          PY
+
+      - name: 驗證正式估價資格規則
+        run: |
+          python - <<'PY'
+          import csv
+
+          path = "data/pricing_decisions.csv"
+
+          total = 0
+          eligible = 0
+          insufficient = 0
+
+          with open(path, encoding="utf-8-sig", newline="") as f:
+              reader = csv.DictReader(f)
+
+              for row in reader:
+                  total += 1
+
+                  a = int(float(row.get("grade_a_count") or 0))
+                  b = int(float(row.get("grade_b_count") or 0))
+                  c = int(float(row.get("grade_c_count") or 0))
+
+                  core = a + b + c
+
+                  flag = row.get("formal_valuation_eligible", "")
+
+                  if core >= 3:
+                      eligible += 1
+
+                      if flag != "是":
+                          print(
+                              "錯誤：A/B/C 已達 3 筆，"
+                              "但正式估價資格不是『是』"
+                          )
+                          print(row)
+                          raise SystemExit(1)
+                  else:
+                      insufficient += 1
+
+                      if flag != "否":
+                          print(
+                              "錯誤：A/B/C 不足 3 筆，"
+                              "但正式估價資格不是『否』"
+                          )
+                          print(row)
+                          raise SystemExit(1)
+
+          print("================================")
+          print("V6.2 真實資料驗證完成")
+          print(f"總房源：{total}")
+          print(f"正式估價資格：{eligible}")
+          print(f"樣本不足：{insufficient}")
+          print("================================")
+          PY
+
+      - name: 上傳 V6.2 真實資料驗證報告
+        uses: actions/upload-artifact@v4
+        with:
+          name: v62-real-data-report
+          path: data/pricing_decisions.csv
