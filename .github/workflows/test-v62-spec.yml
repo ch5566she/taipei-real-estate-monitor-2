@@ -1,0 +1,49 @@
+name: V6.2 價格口徑規格測試
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "pricing_engine_v6_2.py"
+      - "pricing_engine_v6_2_spec_test.py"
+      - "V6_2_PRICING_SPEC.md"
+      - ".github/workflows/test-v62-spec.yml"
+
+jobs:
+  test-v62-spec:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 設定 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 檢查 Python 版本
+        run: |
+          python --version
+
+      - name: 檢查 V6.2 檔案
+        run: |
+          test -f pricing_engine_v6_2.py
+          test -f pricing_engine_v6_2_spec_test.py
+          test -f V6_2_PRICING_SPEC.md
+          test -f pricing_engine.py
+
+          echo "V6.2 所需檔案全部存在"
+
+      - name: 執行 V6.2 規格測試
+        run: |
+          python pricing_engine_v6_2_spec_test.py
+
+      - name: 完成
+        run: |
+          echo "======================================"
+          echo "V6.2 價格口徑規格測試完成"
+          echo "正式 pricing_engine.py 未被接管"
+          echo "======================================"
