@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-20T10:06:38.854421+00:00",
+  "generated_at": "2026-08-20T21:43:16.555741+00:00",
   "stage": "第28階段：591成交資料庫＋時間衰減＋多層級比價＋樣本不足第二層行情推估＋房仲實戰定價引擎（A/B/C主要比價＋D行情參考＋E排除）",
   "summary": {
     "listing_count": 1,
@@ -27,18 +27,18 @@
         "building_name": "",
         "age": 6.0,
         "floor": 6.0,
-        "total_floors": 8.0,
+        "total_floors": null,
         "rooms": 1.0,
-        "halls": 1.0,
-        "bathrooms": 1.0,
-        "parking": "有車位",
+        "halls": null,
+        "bathrooms": null,
+        "parking": "",
         "parking_price": null,
         "parking_area": null,
         "address_key": "德行西路88號",
         "unit_key": "德行西路88號|6",
         "source": "591",
         "url": "",
-        "updated_at": "2026-08-20"
+        "updated_at": "2026-08-21 05:43:16"
       },
       "comparison": {
         "sample_count": 1,
@@ -115,7 +115,7 @@
         },
         "comparables": [
           {
-            "score": 298,
+            "score": 290,
             "tier": "A",
             "tier_reason": "同門牌＋同樓層",
             "weight": 1.2,
