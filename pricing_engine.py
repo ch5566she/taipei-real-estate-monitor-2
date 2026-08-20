@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 """
-第32階段：房仲實戰價格決策引擎 V6
-A/B/C 正式估價＋D行情參考＋E/F排除＋異常值過濾版
+第33階段：房仲實戰價格決策引擎 V6.1
+A/B/C 正式估價＋D行情參考＋E/F排除＋樣本不足顯示修正版
 
 功能：
 
@@ -33,6 +33,9 @@ A/B/C 正式估價＋D行情參考＋E/F排除＋異常值過濾版
 
 8. 輸出：
    data/pricing_decisions.csv
+
+9. V6.1：正式樣本不足時，weighted_market_unit_price 不列為正式市場價格；
+   另以 market_reference_unit_price 與 market_reference_note 保存內部參考資訊。
 """
 
 import csv
@@ -126,6 +129,8 @@ OUTPUT_FIELDS = [
     "excluded_count",
     "excluded_reasons",
     "weighted_market_unit_price",
+    "market_reference_unit_price",
+    "market_reference_note",
     "comparable_grade_summary",
 ]
 
@@ -1509,6 +1514,8 @@ def make_empty_decision(listing):
         "excluded_count": 0,
         "excluded_reasons": "",
         "weighted_market_unit_price": None,
+        "market_reference_unit_price": None,
+        "market_reference_note": "無可用正式樣本；不提供市場價格參考。",
         "comparable_grade_summary": "A0/B0/C0/D0/E0",
     }
 
@@ -1708,7 +1715,15 @@ def decision_for_listing(listing, transactions):
             "excluded_count": sum(exclusion_counts.values()),
             "excluded_reasons": excluded_reasons,
 
-            "weighted_market_unit_price": money(weighted_unit),
+            # V6.1：樣本不足時，不能把統計結果放在正式市場價格欄位。
+            # 保留計算值供內部追蹤，但明確標示為參考值，不列入正式估價。
+            "weighted_market_unit_price": None,
+            "market_reference_unit_price": money(weighted_unit),
+            "market_reference_note": (
+                "正式樣本不足：僅有 "
+                f"{comparable_count} 筆 A/B/C 可比樣本；"
+                "市場單價僅供內部參考，不列入正式估價。"
+            ),
             "comparable_grade_summary": grade_summary,
         }
 
@@ -1792,6 +1807,8 @@ def decision_for_listing(listing, transactions):
         "excluded_count": sum(exclusion_counts.values()),
         "excluded_reasons": excluded_reasons,
         "weighted_market_unit_price": money(weighted_unit),
+        "market_reference_unit_price": None,
+        "market_reference_note": "已達正式估價最低樣本門檻，市場單價可納入正式估價。",
         "comparable_grade_summary": grade_summary,
     }
 
@@ -1839,7 +1856,7 @@ def main():
     )
 
     print(
-        "第32階段：房仲實戰價格決策引擎 V6"
+        "第33階段：房仲實戰價格決策引擎 V6.1"
     )
 
     print(
@@ -1901,7 +1918,7 @@ def main():
     )
 
     print(
-        "第31階段完成：多層級可比＋異常值過濾。"
+        "第33階段完成：V6.1 樣本不足顯示修正＋多層級可比＋異常值過濾。"
     )
 
 
