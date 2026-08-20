@@ -369,6 +369,108 @@ footer {
     line-height: 1.7;
 }
 
+
+
+.pricing-decision {
+    margin: 25px 0 30px 0;
+    padding: 24px;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+}
+
+.pricing-section-title h2 { margin: 0 0 8px 0; }
+.pricing-section-title p { margin: 0 0 18px 0; color: #64748b; line-height: 1.8; }
+
+.pricing-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin: 18px 0;
+}
+
+.pricing-summary-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px;
+}
+.pricing-summary-card.pricing-good { background: #f0fdf4; border-color: #bbf7d0; }
+.pricing-summary-card.pricing-neutral { background: #eff6ff; border-color: #bfdbfe; }
+.pricing-summary-card.pricing-high { background: #fff7ed; border-color: #fed7aa; }
+.pricing-summary-card.pricing-insufficient { background: #f8fafc; border-color: #cbd5e1; }
+.pricing-summary-label { color: #64748b; font-size: 13px; }
+.pricing-summary-value { margin-top: 5px; font-size: 23px; font-weight: 700; }
+.pricing-summary-unit { color: #64748b; font-size: 12px; }
+
+.pricing-method-note {
+    margin: 16px 0 20px 0;
+    padding: 14px 16px;
+    background: #eff6ff;
+    border-left: 4px solid #2563eb;
+    border-radius: 8px;
+    color: #475569;
+    line-height: 1.7;
+}
+.pricing-method-note code { background: #e2e8f0; padding: 2px 5px; border-radius: 4px; }
+
+.pricing-item {
+    margin-top: 22px;
+    padding: 20px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #ffffff;
+}
+.pricing-item-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.pricing-item-number { color: #2563eb; font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+.pricing-item-header h3 { margin: 0 0 6px 0; }
+.pricing-location { color: #64748b; font-size: 13px; }
+
+.pricing-badge {
+    min-width: 150px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+.pricing-badge strong { display: block; margin-bottom: 4px; }
+.pricing-badge span { display: block; color: #64748b; font-size: 12px; }
+.pricing-badge.pricing-good { background: #f0fdf4; border-color: #86efac; }
+.pricing-badge.pricing-neutral { background: #eff6ff; border-color: #93c5fd; }
+.pricing-badge.pricing-high { background: #fff7ed; border-color: #fdba74; }
+.pricing-badge.pricing-insufficient { background: #f8fafc; border-color: #cbd5e1; }
+
+.pricing-facts {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 18px 0;
+}
+.pricing-facts > div { padding: 12px; background: #f8fafc; border-radius: 8px; }
+.pricing-facts span { display: block; color: #64748b; font-size: 12px; margin-bottom: 5px; }
+.pricing-facts strong { font-size: 17px; }
+
+.pricing-decision-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin: 16px 0;
+}
+.pricing-analysis-card {
+    padding: 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    line-height: 1.7;
+}
+.pricing-analysis-card h4 { margin: 0 0 8px 0; }
+.pricing-analysis-card p { margin: 5px 0; }
+.pricing-action-card { background: #f0fdf4; border-color: #bbf7d0; }
+.pricing-comparable-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.pricing-comparable-meta span { background: #e2e8f0; padding: 3px 7px; border-radius: 999px; font-size: 11px; color: #475569; }
+.pricing-action-note { margin-top: 14px; padding: 14px 16px; background: #eff6ff; border-left: 4px solid #2563eb; border-radius: 8px; line-height: 1.8; }
+.pricing-safety-note { margin-top: 10px; color: #64748b; font-size: 12px; line-height: 1.7; }
+
 @media(max-width:700px) {
 
     .district {
@@ -416,7 +518,7 @@ footer {
 
 <p>
 產生時間：
-2026-08-20 08:27:43
+2026-08-20 08:53:44
 </p>
 
 <p>
@@ -621,7 +723,7 @@ footer {
             </div>
         </div>
         <div class="listing-meta">
-            比價資料產生時間（台灣時間）：2026-08-20 08:27:42
+            比價資料產生時間（台灣時間）：2026-08-20 08:53:44
         </div>
     
 
@@ -724,6 +826,106 @@ footer {
                 </div>
 
                 <div class="listing-id">物件編號：591-20260820-001</div>
+            </article>
+        
+    </section>
+    
+
+        
+    <section class="pricing-decision">
+        <div class="pricing-section-title">
+            <h2>💰 房仲實戰價格決策儀表板</h2>
+            <p>把「目前在售開價」與「實價成交模型」轉成可直接拿來談案、估價、議價的決策資訊。</p>
+        </div>
+        
+        <div class="pricing-summary-grid">
+            <div class="pricing-summary-card">
+                <div class="pricing-summary-label">分析物件</div>
+                <div class="pricing-summary-value">1</div>
+                <div class="pricing-summary-unit">筆</div>
+            </div>
+            <div class="pricing-summary-card pricing-good">
+                <div class="pricing-summary-label">低於市場</div>
+                <div class="pricing-summary-value">0</div>
+                <div class="pricing-summary-unit">筆</div>
+            </div>
+            <div class="pricing-summary-card pricing-neutral">
+                <div class="pricing-summary-label">接近市場</div>
+                <div class="pricing-summary-value">0</div>
+                <div class="pricing-summary-unit">筆</div>
+            </div>
+            <div class="pricing-summary-card pricing-high">
+                <div class="pricing-summary-label">高於市場</div>
+                <div class="pricing-summary-value">1</div>
+                <div class="pricing-summary-unit">筆</div>
+            </div>
+            <div class="pricing-summary-card pricing-insufficient">
+                <div class="pricing-summary-label">樣本不足</div>
+                <div class="pricing-summary-value">0</div>
+                <div class="pricing-summary-unit">筆</div>
+            </div>
+        </div>
+        <div class="pricing-method-note">
+            <strong>決策來源：</strong>直接讀取 <code>data/pricing_decisions.csv</code>，
+            顯示第29/30階段價格決策引擎的結果；本頁不重新計算成交案例。
+        </div>
+    
+        
+            <article class="pricing-item">
+                <div class="pricing-item-header">
+                    <div>
+                        <div class="pricing-item-number">物件 #1｜591-20260820-001</div>
+                        <h3>協和新天母捷運芝山商圈自住收租蘭雅國小明德國中家樂福德行公園</h3>
+                        <div class="pricing-location">
+                            士林區｜德行西路88號
+                        </div>
+                    </div>
+                    <div class="pricing-badge pricing-high">
+                        <strong>價格過高</strong>
+                        <span>信心：中低</span>
+                    </div>
+                </div>
+
+                <div class="pricing-facts">
+                    <div><span>目前開價</span><strong>2,988.00 萬</strong></div>
+                    <div><span>目前開價單價</span><strong>108.50 萬／坪</strong></div>
+                    <div><span>加權市場單價</span><strong>85.80 萬／坪</strong></div>
+                    <div><span>價格差距</span><strong>+34.11%</strong></div>
+                </div>
+
+                <div class="pricing-decision-grid">
+                    <div class="pricing-analysis-card">
+                        <h4>📊 市場基準</h4>
+                        <p>加權市場單價：<strong>85.80 萬／坪</strong></p>
+                        <p>成交中位單價：<strong>73.56 萬／坪</strong></p>
+                        <p>比較樣本：<strong>4 筆</strong></p>
+                        <p>案例品質：<strong>A1/B0/C0/D0/E3</strong></p>
+                        
+            <div class="pricing-comparable-meta">
+                <span>A級 1 筆</span>
+                <span>B級 0 筆</span>
+                <span>C級 0 筆</span>
+                <span>核心 1 筆</span>
+                <span>排除 45 筆</span>
+            </div>
+        
+                    </div>
+                    <div class="pricing-analysis-card pricing-action-card">
+                        <h4>💰 房仲議價決策</h4>
+                        <p>合理價格：<strong>1,760.23 ～ 2,696.05 萬</strong></p>
+                        <p>買方第一口：<strong>1,672.22 萬</strong></p>
+                        <p>買方最高價：<strong>2,642.13 萬</strong></p>
+                        <p>賣方合理價：<strong>2,696.05 萬</strong></p>
+                        <p>理論議價幅度：<strong>+11.58%</strong></p>
+                    </div>
+                </div>
+
+                <div class="pricing-action-note">
+                    <strong>🎯 實戰建議：</strong>列入議價重點；先確認屋況、樓層、車位與裝潢差異，再以成交基準回推合理價格。
+                </div>
+                <div class="pricing-safety-note">
+                    ⚠️ 本區間屬資料模型的決策輔助，不代表保證成交價；樣本不足時不得把空白價格區間解讀成零元或無議價空間。
+                </div>
             </article>
         
     </section>
