@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 """
-第30階段：房仲實戰價格決策引擎 V4
-A/B/C/D/E 可比擴充＋排除原因分析版
+第31階段：房仲實戰價格決策引擎 V5
+A/B/C/D/E/F 多層級可比＋異常值過濾＋排除原因分析版
 
 功能：
 
@@ -20,11 +20,12 @@ A/B/C/D/E 可比擴充＋排除原因分析版
    B. 同門牌
    C. 同路段＋相近坪數＋同類型
    D. 同路段／同區＋較寬坪數＋同類型
-   E. 同行政區＋較寬坪數
+   E. 同行政區＋相近坪數
+    F. 同行政區＋較寬坪數（最後保底）
 
-5. 最多取 12 筆有效可比成交
+5. 先取最多 24 筆候選，過濾異常值後最多保留 12 筆有效可比成交
 
-6. 核心 A/B 不足時，依序啟用 C/D/E 擴充樣本；全部仍不足 3 筆才不輸出精確議價
+6. 核心 A/B 不足時，依序啟用 C/D/E/F 擴充樣本；統計異常值過濾後仍不足 3 筆才不輸出精確議價
 
 7. 3～12 筆：
    使用中位數＋加權中位數
@@ -83,6 +84,12 @@ OUTPUT_FILE = os.path.join(
 
 MIN_COMPARABLES = 3
 MAX_COMPARABLES = 12
+
+# 第31階段：多層級擴充與異常值過濾
+# 只有樣本數足夠時才啟動統計型異常值過濾，避免小樣本被過度刪除。
+OUTLIER_MIN_SAMPLE = 5
+OUTLIER_MAD_Z = 3.5
+OUTLIER_IQR_FACTOR = 1.5
 
 
 # ============================================================
@@ -334,6 +341,25 @@ def street_key(value):
         return match.group(1)
 
     return ""
+
+
+def street_family(value):
+    """將同一路名不同段別歸為同一街道家族，例如中山北路五段/六段。"""
+    street = street_key(value)
+    if not street:
+        return ""
+
+    return re.sub(
+        r"[一二三四五六七八九十0-9]+段$",
+        "",
+        street
+    )
+
+
+def same_street_family(listing, transaction):
+    left = street_family(listing.get("location"))
+    right = transaction.get("street_family") or street_family(transaction.get("location"))
+    return bool(left and right and left == right)
 
 
 # ============================================================
@@ -916,6 +942,11 @@ def load_transactions():
                         location
                     ),
 
+                "street_family":
+                    street_family(
+                        location
+                    ),
+
                 "area":
                     area,
 
@@ -1058,8 +1089,8 @@ def _match_exclusion_reason(listing, transaction):
         return "預售／讓渡"
 
     area_ratio = abs(transaction["area"] - listing["area"]) / listing["area"]
-    if area_ratio > 0.40:
-        return "坪數差異>40%"
+    if area_ratio > 0.60:
+        return "坪數差異>60%"
 
     return None
 
@@ -1070,26 +1101,33 @@ def _match_exclusion_reason(listing, transaction):
 
 def score_transaction(listing, transaction):
     """
-    V4 分級可比：
-
+    第31階段多層級可比：
     A 同門牌＋同樓層
     B 同門牌
-    C 同路段＋坪數<=20%＋同類型
-    D 同路段＋坪數<=30%＋同類型
-    E 同區＋坪數<=40%，或同區＋坪數<=30%＋同類型
+    C 同路段＋相近坪數＋同類型
+    D 同路段／同街道家族＋較寬坪數＋同類型
+    E 同行政區＋相近坪數
+    F 同行政區＋較寬坪數（最後擴充層）
 
-    A/B/C 是高品質或中高品質樣本；
-    D/E 僅在高品質樣本不足時作擴充。
+    注意：
+    F 是「最後保底擴充」，不代表高品質同類型案例。
     """
 
     if transaction["district"] != listing["district"]:
         return None
 
-    if transaction.get("related") or transaction.get("special") or transaction.get("pre_sale"):
+    if (
+        transaction.get("related")
+        or transaction.get("special")
+        or transaction.get("pre_sale")
+    ):
         return None
 
-    area_ratio = abs(transaction["area"] - listing["area"]) / listing["area"]
-    if area_ratio > 0.40:
+    area_ratio = abs(
+        transaction["area"] - listing["area"]
+    ) / listing["area"]
+
+    if area_ratio > 0.60:
         return None
 
     same_address = (
@@ -1110,6 +1148,8 @@ def score_transaction(listing, transaction):
         and street_key(listing["location"]) == transaction["street"]
     )
 
+    same_family = same_street_family(listing, transaction)
+
     same_type = (
         listing["type"] == "其他"
         or transaction["type"] == "其他"
@@ -1124,42 +1164,62 @@ def score_transaction(listing, transaction):
 
     if same_address and same_floor:
         tier = "A"
-        base_weight = 2.50
+        base_weight = 2.80
     elif same_address:
         tier = "B"
-        base_weight = 1.85
+        base_weight = 2.00
     elif same_street and area_ratio <= 0.20 and same_type:
         tier = "C"
-        base_weight = 1.30
+        base_weight = 1.45
     elif same_street and area_ratio <= 0.30 and same_type:
         tier = "D"
-        base_weight = 0.78
+        base_weight = 0.90
+    elif same_family and area_ratio <= 0.30 and same_type:
+        tier = "D"
+        base_weight = 0.72
     elif area_ratio <= 0.30 and same_type:
         tier = "E"
-        base_weight = 0.48
+        base_weight = 0.52
     elif area_ratio <= 0.40:
         tier = "E"
-        base_weight = 0.30
+        base_weight = 0.34
+    elif area_ratio <= 0.60 and same_type:
+        tier = "F"
+        base_weight = 0.22
     else:
         return None
 
-    expansion_factor = 0.60 if transaction.get("expansion") else 1.0
-    type_factor = 1.0 if same_type else 0.70
+    expansion_factor = 0.55 if transaction.get("expansion") else 1.0
+    type_factor = 1.0 if same_type else 0.68
     parking_factor = 1.0 if parking_same else 0.88
-    area_factor = max(0.55, 1.0 - area_ratio * 1.25)
+    area_factor = max(0.50, 1.0 - area_ratio * 1.20)
 
     floor_factor = 1.0
     if listing["floor"] is not None and transaction["floor"] is not None:
-        floor_difference = abs(listing["floor"] - transaction["floor"])
-        floor_factor = max(0.80, 1.0 - floor_difference * 0.025)
+        floor_difference = abs(
+            listing["floor"] - transaction["floor"]
+        )
+        floor_factor = max(
+            0.78,
+            1.0 - floor_difference * 0.025
+        )
 
     age_factor = 1.0
     if listing.get("age") is not None and transaction.get("age") is not None:
-        age_difference = abs(listing["age"] - transaction["age"])
-        age_factor = max(0.70, 1.0 - age_difference * 0.025)
+        age_difference = abs(
+            listing["age"] - transaction["age"]
+        )
+        age_factor = max(
+            0.68,
+            1.0 - age_difference * 0.022
+        )
 
     time_factor = recency_weight(transaction["date"])
-    source_factor = 1.08 if transaction.get("source") == "591" else 1.0
+    source_factor = (
+        1.08
+        if transaction.get("source") == "591"
+        else 1.0
+    )
 
     final_weight = (
         base_weight
@@ -1180,10 +1240,80 @@ def score_transaction(listing, transaction):
         "same_address": same_address,
         "same_floor": same_floor,
         "same_street": same_street,
+        "same_family": same_family,
         "area_ratio": area_ratio,
         "adjusted_unit": transaction["unit"] * floor_factor,
         "tx": transaction,
     }
+
+
+def filter_outliers(comparables):
+    """
+    第31階段：統計型異常值過濾。
+
+    - <5筆：不做統計刪除，避免小樣本誤殺。
+    - >=5筆：以 MAD 為主，IQR 為輔。
+    - 每次至少保留 3 筆；若過濾後不足 3 筆，回復原樣。
+    """
+    if len(comparables) < OUTLIER_MIN_SAMPLE:
+        return list(comparables), []
+
+    values = [
+        float(item["adjusted_unit"])
+        for item in comparables
+        if item.get("adjusted_unit") is not None
+    ]
+
+    if len(values) < OUTLIER_MIN_SAMPLE:
+        return list(comparables), []
+
+    med = median(values)
+    deviations = [abs(v - med) for v in values]
+    mad = median(deviations)
+
+    sorted_values = sorted(values)
+    q1_index = (len(sorted_values) - 1) * 0.25
+    q3_index = (len(sorted_values) - 1) * 0.75
+
+    def percentile(data, pos):
+        low = int(pos)
+        high = min(low + 1, len(data) - 1)
+        frac = pos - low
+        return data[low] + (data[high] - data[low]) * frac
+
+    q1 = percentile(sorted_values, q1_index)
+    q3 = percentile(sorted_values, q3_index)
+    iqr = q3 - q1
+
+    low_iqr = q1 - OUTLIER_IQR_FACTOR * iqr
+    high_iqr = q3 + OUTLIER_IQR_FACTOR * iqr
+
+    kept = []
+    removed = []
+
+    for item in comparables:
+        value = float(item["adjusted_unit"])
+
+        mad_outlier = False
+        if mad > 0:
+            robust_z = 0.6745 * (value - med) / mad
+            mad_outlier = abs(robust_z) > OUTLIER_MAD_Z
+
+        iqr_outlier = (
+            iqr > 0
+            and (value < low_iqr or value > high_iqr)
+        )
+
+        # 兩種方法同意才排除，避免把真實高低價誤判成異常。
+        if mad_outlier and iqr_outlier:
+            removed.append(item)
+        else:
+            kept.append(item)
+
+    if len(kept) < MIN_COMPARABLES:
+        return list(comparables), []
+
+    return kept, removed
 
 
 # ============================================================
@@ -1205,15 +1335,24 @@ def find_comparables(listing, transactions):
         if result:
             scored.append(result)
         else:
-            # 行政區相同但沒有達到任何可比層級
-            area_ratio = abs(transaction["area"] - listing["area"]) / listing["area"]
-            if area_ratio > 0.40:
-                reason = "坪數差異>40%"
-            elif listing["type"] != "其他" and transaction["type"] != "其他" and listing["type"] != transaction["type"]:
+            area_ratio = abs(
+                transaction["area"] - listing["area"]
+            ) / listing["area"]
+
+            if area_ratio > 0.60:
+                reason = "坪數差異>60%"
+            elif (
+                listing["type"] != "其他"
+                and transaction["type"] != "其他"
+                and listing["type"] != transaction["type"]
+            ):
                 reason = "建物型態不同"
             else:
                 reason = "未達可比條件"
-            exclusion_counts[reason] = exclusion_counts.get(reason, 0) + 1
+
+            exclusion_counts[reason] = (
+                exclusion_counts.get(reason, 0) + 1
+            )
 
     scored.sort(
         key=lambda item: (
@@ -1225,6 +1364,9 @@ def find_comparables(listing, transactions):
             ),
         )
     )
+
+    # 先保留最多 24 筆，讓第31階段有足夠樣本做異常值過濾。
+    scored = scored[:24]
 
     unique = []
     seen = set()
@@ -1240,16 +1382,35 @@ def find_comparables(listing, transactions):
         )
 
         if key in seen:
-            exclusion_counts["重複成交"] = exclusion_counts.get("重複成交", 0) + 1
+            exclusion_counts["重複成交"] = (
+                exclusion_counts.get("重複成交", 0) + 1
+            )
             continue
 
         seen.add(key)
         unique.append(item)
 
-        if len(unique) >= MAX_COMPARABLES:
-            break
+    filtered, removed = filter_outliers(unique)
 
-    return unique, exclusion_counts
+    if removed:
+        exclusion_counts["統計異常值"] = (
+            exclusion_counts.get("統計異常值", 0)
+            + len(removed)
+        )
+
+    # 保留過濾前的最高品質排序。
+    filtered.sort(
+        key=lambda item: (
+            -item["score"],
+            -(
+                item["tx"]["date"].toordinal()
+                if item["tx"]["date"]
+                else 0
+            ),
+        )
+    )
+
+    return filtered[:MAX_COMPARABLES], exclusion_counts
 
 
 # ============================================================
@@ -1370,12 +1531,13 @@ def decision_for_listing(listing, transactions):
     c_count = sum(1 for x in comparables if x["tier"] == "C")
     d_count = sum(1 for x in comparables if x["tier"] == "D")
     e_count = sum(1 for x in comparables if x["tier"] == "E")
+    f_count = sum(1 for x in comparables if x["tier"] == "F")
 
     # 先依品質選擇估價樣本：
     # 1) A/B >= 3：只用 A/B
     # 2) A/B/C >= 3：用 A/B/C
     # 3) A/B/C/D >= 3：用 A/B/C/D
-    # 4) 否則若全部 >= 3：才使用 E 擴充
+    # 4) 否則才逐級使用 E / F 擴充
     if a_count + b_count >= 3:
         selected = [x for x in comparables if x["tier"] in ("A", "B")]
         sample_mode = "核心A/B"
@@ -1385,9 +1547,15 @@ def decision_for_listing(listing, transactions):
     elif a_count + b_count + c_count + d_count >= 3:
         selected = [x for x in comparables if x["tier"] in ("A", "B", "C", "D")]
         sample_mode = "核心＋D擴充"
+    elif a_count + b_count + c_count + d_count + e_count >= 3:
+        selected = [
+            x for x in comparables
+            if x["tier"] in ("A", "B", "C", "D", "E")
+        ]
+        sample_mode = "核心＋E擴充"
     else:
         selected = list(comparables)
-        sample_mode = "完整A/B/C/D/E擴充"
+        sample_mode = "完整A/B/C/D/E/F擴充"
 
     # 若同級樣本很多，仍保留最高分的12筆
     selected = sorted(
@@ -1407,10 +1575,10 @@ def decision_for_listing(listing, transactions):
 
     grade_summary = (
         f"A{a_count}/B{b_count}/C{c_count}/"
-        f"D{d_count}/E{e_count}"
+        f"D{d_count}/E{e_count}/F{f_count}"
     )
 
-    extension_count = c_count + d_count + e_count
+    extension_count = c_count + d_count + e_count + f_count
     confidence = confidence_from_comparables(selected)
 
     if not selected:
@@ -1518,8 +1686,10 @@ def decision_for_listing(listing, transactions):
         spread = 0.12
     elif sample_mode == "核心＋D擴充":
         spread = 0.15
-    else:
+    elif sample_mode == "核心＋E擴充":
         spread = 0.18
+    else:
+        spread = 0.20
 
     if confidence in ("低", "中低"):
         spread += 0.03
@@ -1555,6 +1725,10 @@ def decision_for_listing(listing, transactions):
     # 明確提醒擴充樣本占比過高
     if sample_mode != "核心A/B" and price_grade == "接近市場":
         price_grade = "接近市場（擴充樣本）"
+
+    # 低信心即使達到3筆，也避免給出過度精準的訊號。
+    if confidence == "低":
+        price_grade = "樣本偏弱－僅供參考"
 
     return {
         "listing_id": listing["listing_id"],
@@ -1632,7 +1806,7 @@ def main():
     )
 
     print(
-        "第30階段：房仲實戰價格決策引擎"
+        "第31階段：房仲實戰價格決策引擎 V5"
     )
 
     print(
@@ -1694,7 +1868,7 @@ def main():
     )
 
     print(
-        "第30階段完成。"
+        "第31階段完成：多層級可比＋異常值過濾。"
     )
 
 
