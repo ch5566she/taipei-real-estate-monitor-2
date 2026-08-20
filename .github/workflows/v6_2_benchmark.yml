@@ -1,0 +1,62 @@
+name: V6.2 效能 Benchmark
+
+on:
+  workflow_dispatch:
+
+  push:
+    paths:
+      - "v6_2_benchmark.py"
+      - "v62_stress_test.py"
+      - ".github/workflows/v6_2_benchmark.yml"
+
+jobs:
+  benchmark:
+    name: V6.2 Benchmark
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 設定 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 檢查 Python
+        run: |
+          python --version
+
+      - name: 檢查 Benchmark 檔案
+        run: |
+          test -f v6_2_benchmark.py
+          test -f v62_stress_test.py
+          test -f pricing_engine_v6_2.py
+
+          echo "Benchmark 所需檔案全部存在"
+
+      - name: 執行 V6.2 Benchmark
+        run: |
+          python v6_2_benchmark.py
+
+      - name: 顯示 Benchmark 報告
+        if: always()
+        run: |
+          echo "======================================"
+          echo "V6.2 Benchmark Report"
+          echo "======================================"
+
+          if [ -f reports/v6_2_benchmark_report.md ]; then
+            cat reports/v6_2_benchmark_report.md
+          else
+            echo "找不到 Benchmark 報告"
+          fi
+
+      - name: 上傳 Benchmark 報告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v6-2-benchmark-report
+          path: reports/v6_2_benchmark_report.md
+          if-no-files-found: warn
