@@ -1,0 +1,44 @@
+name: V6.2 壓力測試
+
+on:
+  workflow_dispatch:
+
+jobs:
+  stress-test:
+    name: V6.2 Stress Test
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 設定 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 檢查 Python
+        run: |
+          python --version
+
+      - name: 檢查 V6.2 壓力測試程式
+        run: |
+          test -f pricing_engine_v6_2.py
+          test -f v62_stress_test.py
+          echo "V6.2 壓力測試檔案確認完成"
+
+      - name: 執行 V6.2 壓力測試
+        run: |
+          python v62_stress_test.py
+
+      - name: 產生壓力測試報告
+        if: always()
+        run: |
+          echo "========================================"
+          echo "V6.2 壓力測試完成"
+          echo "========================================"
+          echo "測試程式：v62_stress_test.py"
+          echo "正式引擎：pricing_engine_v6_2.py"
+          echo "測試資料：程式內建立的合成資料"
+          echo "========================================"
