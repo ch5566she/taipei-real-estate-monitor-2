@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-第35階段：房仲實戰價格決策引擎 V6.1.2
+第36階段：房仲實戰價格決策引擎 V6.2
 A/B/C 正式估價＋D行情參考＋E/F排除＋樣本不足顯示修正版
 
 功能：
@@ -132,6 +132,14 @@ OUTPUT_FIELDS = [
     "market_reference_unit_price",
     "market_reference_note",
     "comparable_grade_summary",
+    # V6.2 新增欄位：不取代既有欄位，供後續報表／前端使用
+    "sample_quality_score",
+    "sample_quality_grade",
+    "formal_valuation_eligible",
+    "formal_valuation_reason",
+    "market_reference_level",
+    "market_reference_confidence",
+    "v62_warning",
 ]
 
 
@@ -1481,6 +1489,109 @@ def money(value):
 
 
 # ============================================================
+# V6.2：可比樣本品質評分
+# ============================================================
+
+def sample_quality_assessment(
+    a_count,
+    b_count,
+    c_count,
+    d_count,
+    e_count,
+    f_count,
+    comparable_count,
+    confidence,
+):
+    """
+    V6.2：
+    將「可比樣本層級」轉成 0～100 的品質分數。
+
+    設計原則：
+    - A/B 是核心正式估價樣本，權重最高。
+    - C 可進正式估價，但品質低於 A/B。
+    - D 僅行情參考。
+    - E/F 不得進正式價格計算。
+    - 分數是品質指標，不直接改變既有 V6.1.2 價格公式。
+    """
+    if comparable_count <= 0:
+        return {
+            "score": 0,
+            "grade": "F",
+            "eligible": False,
+            "reason": "沒有可用可比樣本",
+            "reference_level": "無參考",
+            "reference_confidence": "低",
+            "warning": "無可比樣本，無法建立可靠市場價格基準。",
+        }
+
+    # 核心樣本給分；避免單純靠樣本數把低品質 D/E/F 拉高。
+    core_score = (
+        min(a_count, 4) * 18.0
+        + min(b_count, 4) * 14.0
+        + min(c_count, 6) * 7.0
+    )
+
+    # D 僅增加「市場參考」資訊，不足以成為正式估價資格。
+    extension_score = min(d_count, 6) * 2.0
+
+    # 樣本數穩定性加分，最高 8 分。
+    count_bonus = min(comparable_count, 8)
+
+    score = min(100, round(core_score + extension_score + count_bonus))
+
+    if a_count + b_count >= 3:
+        grade = "A"
+        reference_level = "核心正式估價"
+    elif a_count + b_count + c_count >= 3:
+        grade = "B"
+        reference_level = "正式估價（含C級）"
+    elif d_count >= 3 or comparable_count >= 3:
+        grade = "C"
+        reference_level = "行情參考"
+    else:
+        grade = "D"
+        reference_level = "弱行情參考"
+
+    eligible = (a_count + b_count + c_count >= MIN_COMPARABLES)
+
+    if eligible:
+        reason = "A/B/C 正式可比樣本達到最低門檻"
+    elif comparable_count > 0:
+        reason = "A/B/C 正式可比樣本不足3筆，禁止輸出正式估價"
+    else:
+        reason = "沒有可用可比樣本"
+
+    # 讓既有 confidence 與新分數一致，但不覆寫舊 confidence。
+    if confidence == "高":
+        reference_confidence = "高"
+    elif confidence == "中高":
+        reference_confidence = "中高"
+    elif confidence == "中":
+        reference_confidence = "中"
+    elif confidence == "中低":
+        reference_confidence = "中低"
+    else:
+        reference_confidence = "低"
+
+    if not eligible:
+        warning = "正式估價資格：否；僅可作內部行情參考。"
+    elif grade == "B":
+        warning = "正式估價資格：是；因含C級樣本，價格區間應較核心A/B放寬。"
+    else:
+        warning = "正式估價資格：是；核心樣本品質足夠。"
+
+    return {
+        "score": score,
+        "grade": grade,
+        "eligible": eligible,
+        "reason": reason,
+        "reference_level": reference_level,
+        "reference_confidence": reference_confidence,
+        "warning": warning,
+    }
+
+
+# ============================================================
 # 樣本不足
 # ============================================================
 
@@ -1516,7 +1627,14 @@ def make_empty_decision(listing):
         "weighted_market_unit_price": None,
         "market_reference_unit_price": None,
         "market_reference_note": "無可用正式樣本；不提供市場價格參考。",
-        "comparable_grade_summary": "A0/B0/C0/D0/E0",
+        "comparable_grade_summary": "A0/B0/C0/D0/E0/F0",
+        "sample_quality_score": 0,
+        "sample_quality_grade": "F",
+        "formal_valuation_eligible": "否",
+        "formal_valuation_reason": "沒有可用可比樣本",
+        "market_reference_level": "無參考",
+        "market_reference_confidence": "低",
+        "v62_warning": "無可比樣本，無法建立可靠市場價格基準。",
     }
 
 
@@ -1601,6 +1719,19 @@ def decision_for_listing(listing, transactions):
     extension_count = c_count + d_count + e_count + f_count
     confidence = confidence_from_comparables(selected)
 
+    # V6.2：建立獨立的樣本品質評估。
+    # 注意：此評分不直接改寫 V6.1.2 的正式價格公式。
+    quality = sample_quality_assessment(
+        a_count,
+        b_count,
+        c_count,
+        d_count,
+        e_count,
+        f_count,
+        comparable_count,
+        confidence,
+    )
+
     if not selected:
         result = make_empty_decision(listing)
         result.update({
@@ -1613,6 +1744,13 @@ def decision_for_listing(listing, transactions):
             "excluded_count": sum(exclusion_counts.values()),
             "excluded_reasons": excluded_reasons,
             "comparable_grade_summary": grade_summary,
+            "sample_quality_score": quality["score"],
+            "sample_quality_grade": quality["grade"],
+            "formal_valuation_eligible": "是" if quality["eligible"] else "否",
+            "formal_valuation_reason": quality["reason"],
+            "market_reference_level": quality["reference_level"],
+            "market_reference_confidence": quality["reference_confidence"],
+            "v62_warning": quality["warning"],
         })
         return result
 
@@ -1665,7 +1803,6 @@ def decision_for_listing(listing, transactions):
     fair_price = fair_unit * listing["area"]
 
     # ========================================================
-    # V6.1.2：正式價格與內部參考價格分離
     # V6：正式樣本不足
     #
     # A/B/C 不足 3 筆：
@@ -1705,7 +1842,7 @@ def decision_for_listing(listing, transactions):
             "price_grade": "樣本不足",
             "confidence": "低",
 
-            "core_comparable_count": core_count,
+            "core_comparable_count": a_count + b_count,
             "grade_a_count": a_count,
             "grade_b_count": b_count,
             "grade_c_count": c_count,
@@ -1716,27 +1853,52 @@ def decision_for_listing(listing, transactions):
             "excluded_count": sum(exclusion_counts.values()),
             "excluded_reasons": excluded_reasons,
 
-            # V6.1：樣本不足時，不能把統計結果放在正式市場價格欄位。
+            # V6.1.2：正式價格與內部參考價格徹底分離。
+        # V6.1：樣本不足時，不能把統計結果放在正式市場價格欄位。
             # 保留計算值供內部追蹤，但明確標示為參考值，不列入正式估價。
             "weighted_market_unit_price": None,
             "market_reference_unit_price": money(weighted_unit),
             "market_reference_note": (
-                "V6.1.2：正式樣本不足；市場參考單價僅供內部參考，絕不列入正式估價。僅有 "
-                f"{comparable_count} 筆 A/B/C 可比樣本。"
+                "正式樣本不足：僅有 "
+                f"{comparable_count} 筆 A/B/C 可比樣本；"
+                "市場參考單價僅供內部參考，絕不列入正式估價。"
             ),
             "comparable_grade_summary": grade_summary,
+            "sample_quality_score": quality["score"],
+            "sample_quality_grade": quality["grade"],
+            "formal_valuation_eligible": "否",
+            "formal_valuation_reason": quality["reason"],
+            "market_reference_level": quality["reference_level"],
+            "market_reference_confidence": quality["reference_confidence"],
+            "v62_warning": quality["warning"],
         }
 
-    # 擴充樣本越多，仍保留較寬的估價區間
-    if sample_mode == "正式核心A/B" and comparable_count >= 4:
-        spread = 0.10
+    # ========================================================
+    # V6.1.1：修正 sample_mode 與 spread 判斷名稱一致性
+    #
+    # sample_mode 在上方實際使用：
+    #   正式核心A/B
+    #   正式核心A/B/C
+    #   正式樣本不足
+    #
+    # D/E/F 不進正式估價，因此不能用 D/E/F 來決定正式估價區間。
+    # ========================================================
+
+    if sample_mode == "正式核心A/B":
+        # A/B 至少 3 筆，且屬最高品質核心樣本。
+        # 4 筆以上代表樣本更穩定，使用較窄區間。
+        if comparable_count >= 4:
+            spread = 0.10
+        else:
+            spread = 0.12
+
     elif sample_mode == "正式核心A/B/C":
+        # C 可以正式估價，但品質低於 A/B，因此區間略放寬。
         spread = 0.12
-    elif sample_mode == "核心＋D擴充":
-        spread = 0.15
-    elif sample_mode == "核心＋E擴充":
-        spread = 0.18
+
     else:
+        # 正式樣本不足時前面已 return；
+        # 這裡僅作安全保底，避免未預期模式造成過窄區間。
         spread = 0.20
 
     if confidence in ("低", "中低"):
@@ -1770,7 +1932,7 @@ def decision_for_listing(listing, transactions):
     else:
         price_grade = "接近市場"
 
-    # 明確提醒擴充樣本占比過高
+    # 明確提醒非純 A/B 正式核心模式，避免把擴充／C 樣本造成的結果誤解為純核心結果
     if sample_mode != "正式核心A/B" and price_grade == "接近市場":
         price_grade = "接近市場（擴充樣本）"
 
@@ -1797,7 +1959,7 @@ def decision_for_listing(listing, transactions):
         "negotiation_percent": money(negotiation_percent),
         "price_grade": price_grade,
         "confidence": confidence,
-        "core_comparable_count": core_count,
+        "core_comparable_count": a_count + b_count,
         "grade_a_count": a_count,
         "grade_b_count": b_count,
         "grade_c_count": c_count,
@@ -1810,6 +1972,13 @@ def decision_for_listing(listing, transactions):
         "market_reference_unit_price": None,
         "market_reference_note": "已達正式估價最低樣本門檻，市場單價可納入正式估價。",
         "comparable_grade_summary": grade_summary,
+        "sample_quality_score": quality["score"],
+        "sample_quality_grade": quality["grade"],
+        "formal_valuation_eligible": "是" if quality["eligible"] else "否",
+        "formal_valuation_reason": quality["reason"],
+        "market_reference_level": quality["reference_level"],
+        "market_reference_confidence": quality["reference_confidence"],
+        "v62_warning": quality["warning"],
     }
 
 
@@ -1840,14 +2009,9 @@ def save_results(
 
         writer.writeheader()
 
-        normalized_rows = []
-        for row in rows:
-            normalized_rows.append({
-                field: row.get(field)
-                for field in OUTPUT_FIELDS
-            })
-
-        writer.writerows(normalized_rows)
+        writer.writerows(
+            rows
+        )
 
 
 # ============================================================
@@ -1861,11 +2025,15 @@ def main():
     )
 
     print(
-        "第35階段：房仲實戰價格決策引擎 V6.1.2"
+        "第36階段：房仲實戰價格決策引擎 V6.2"
     )
 
     print(
         "=========================================="
+    )
+
+    print(
+        "V6.2：加入可比樣本品質分數、正式估價資格與市場參考層級；保留 V6.1.2 正式價格／內部參考價格分離機制。"
     )
 
     # --------------------------------------------------------
@@ -1907,6 +2075,8 @@ def main():
             f"可比 {result['comparable_count']} 筆 | "
             f"{result.get('comparable_grade_summary', '')} | "
             f"信心 {result.get('confidence', '低')} | "
+            f"品質 {result.get('sample_quality_grade', 'F')}"
+            f"/{result.get('sample_quality_score', 0)} | "
             f"{result['price_grade']}"
         )
 
@@ -1923,7 +2093,7 @@ def main():
     )
 
     print(
-        "第35階段完成：V6.1.2 正式價格／內部參考價格分離＋正式樣本判斷修正。"
+        "第36階段完成：V6.2 可比樣本品質分級＋正式估價資格判斷＋市場參考層級。"
     )
 
 
