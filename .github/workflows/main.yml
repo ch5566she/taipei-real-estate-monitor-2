@@ -2,21 +2,26 @@ name: 台北市士林區北投區房市監控
 
 on:
   schedule:
+    # GitHub Actions 使用 UTC
+    # 01:00 UTC = 台灣時間 09:00
     - cron: "0 1 * * *"
 
+  # 允許手動執行
   workflow_dispatch:
 
+# 允許 GitHub Actions 將每日更新資料寫回 Repository
 permissions:
   contents: write
 
 jobs:
   run-monitor:
+
     runs-on: ubuntu-latest
 
     steps:
 
       # ============================================================
-      # 1. 取得 Repository
+      # 1. Checkout Repository
       # ============================================================
 
       - name: Checkout
@@ -32,15 +37,22 @@ jobs:
           python-version: "3.11"
 
       # ============================================================
-      # 3. 顯示 Python 版本
+      # 3. 檢查 Python 環境
       # ============================================================
 
       - name: 檢查 Python
         run: |
           python --version
+          pip --version
 
       # ============================================================
-      # 4. 官方實價成交資料
+      # 4. 取得官方實價成交資料
+      #
+      # data_collector.py
+      #        ↓
+      # data/taipei_transactions.csv
+      #        ↓
+      # history/YYYY-MM-DD.csv
       # ============================================================
 
       - name: 取得官方實價資料
@@ -48,13 +60,16 @@ jobs:
           python data_collector.py
 
       # ============================================================
-      # 5. 在售房源資料匯入
+      # 5. 匯入在售房源資料
       #
-      # incoming_listings.csv
+      # data/incoming_listings.csv
       #        ↓
       # listing_importer.py
       #        ↓
-      # raw_listings.csv
+      # data/raw_listings.csv
+      #
+      # ⚠️ 目前 incoming_listings.csv
+      #    是既有的合法匯入資料
       # ============================================================
 
       - name: 匯入在售房源資料
@@ -62,13 +77,13 @@ jobs:
           python listing_importer.py
 
       # ============================================================
-      # 6. 在售房源資料整理
+      # 6. 整理目前在售房源
       #
-      # raw_listings.csv
+      # data/raw_listings.csv
       #        ↓
       # listing_collector.py
       #        ↓
-      # current_listings.csv
+      # data/current_listings.csv
       # ============================================================
 
       - name: 整理目前在售房源
@@ -78,7 +93,11 @@ jobs:
             data/current_listings.csv
 
       # ============================================================
-      # 7. 房源比較
+      # 7. 執行房源比較
+      #
+      # current_listings.csv
+      #        ↓
+      # listing_comparison
       # ============================================================
 
       - name: 執行房源比較
@@ -86,9 +105,12 @@ jobs:
           python listing_comparator_stage26.py
 
       # ============================================================
-      # 8. 目前仍使用既有正式 pricing_engine.py
+      # 8. 執行目前正式價格決策
       #
-      # ⚠️ 本階段不切換 V6.2
+      # ⚠️ 第43階段目前仍使用 pricing_engine.py
+      #
+      # 暫時不要改成：
+      # pricing_engine_v6_2.py
       # ============================================================
 
       - name: 執行既有價格決策
@@ -96,7 +118,7 @@ jobs:
           python pricing_engine.py
 
       # ============================================================
-      # 9. 產生報告
+      # 9. 產生房市報告
       # ============================================================
 
       - name: 產生房市報告
@@ -104,57 +126,109 @@ jobs:
           python report.py
 
       # ============================================================
-      # 10. 顯示目前資料數量
+      # 10. 檢查資料管線
+      #
+      # 這一步非常重要：
+      # 用來確認資料是否一路正常流動
       # ============================================================
 
       - name: 檢查輸出資料
         run: |
+
           echo "=========================================="
           echo "第43階段：資料管線檢查"
           echo "=========================================="
 
+          echo ""
+          echo "【1】incoming_listings.csv"
+
           if [ -f data/incoming_listings.csv ]; then
-            echo "incoming_listings.csv：存在"
+            echo "檔案：存在"
             wc -l data/incoming_listings.csv
           else
-            echo "incoming_listings.csv：不存在"
+            echo "❌ 檔案不存在"
+            exit 1
           fi
+
+
+          echo ""
+          echo "【2】raw_listings.csv"
 
           if [ -f data/raw_listings.csv ]; then
-            echo "raw_listings.csv：存在"
+            echo "檔案：存在"
             wc -l data/raw_listings.csv
           else
-            echo "raw_listings.csv：不存在"
+            echo "❌ 檔案不存在"
+            exit 1
           fi
+
+
+          echo ""
+          echo "【3】current_listings.csv"
 
           if [ -f data/current_listings.csv ]; then
-            echo "current_listings.csv：存在"
+            echo "檔案：存在"
             wc -l data/current_listings.csv
           else
-            echo "current_listings.csv：不存在"
+            echo "❌ 檔案不存在"
+            exit 1
           fi
 
+
+          echo ""
+          echo "【4】pricing_decisions.csv"
+
           if [ -f data/pricing_decisions.csv ]; then
-            echo "pricing_decisions.csv：存在"
+            echo "檔案：存在"
             wc -l data/pricing_decisions.csv
           else
-            echo "pricing_decisions.csv：不存在"
+            echo "⚠️ pricing_decisions.csv 不存在"
           fi
+
+
+          echo ""
+          echo "=========================================="
+          echo "資料管線檢查完成"
+          echo "=========================================="
+
+
+      # ============================================================
+      # 11. 顯示 Git 變更
+      # ============================================================
+
+      - name: 檢查 Git 變更
+        run: |
+          echo "=========================================="
+          echo "Git 變更檢查"
+          echo "=========================================="
+
+          git status --short
 
           echo "=========================================="
 
+
       # ============================================================
-      # 11. Commit 自動更新資料
+      # 12. 儲存每日資料
       # ============================================================
 
       - name: 儲存每日資料
         run: |
+
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add data history reports || true
 
-          git diff --cached --quiet || \
+          if git diff --cached --quiet; then
+
+            echo "沒有新的資料需要 Commit"
+
+          else
+
             git commit -m "每日房市資料更新"
 
-          git push || true
+            git push
+
+          fi
