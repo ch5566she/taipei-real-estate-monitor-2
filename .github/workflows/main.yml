@@ -1,11 +1,10 @@
-name: 執行房市監控程式
+name: 台北市士林區北投區房市監控
 
 on:
-  workflow_dispatch:
-
   schedule:
-    # UTC 01:00 = 台灣時間 09:00
-    - cron: '0 1 * * *'
+    - cron: "0 1 * * *"
+
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -16,227 +15,146 @@ jobs:
 
     steps:
 
-      # ==============================
-      # 下載專案
-      # ==============================
+      # ============================================================
+      # 1. 取得 Repository
+      # ============================================================
 
-      - name: 下載專案程式
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # ==============================
-      # 設定 Python
-      # ==============================
+      # ============================================================
+      # 2. 設定 Python
+      # ============================================================
 
       - name: 設定 Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.11"
 
-      # ==============================
-      # 執行主程式
-      # ==============================
+      # ============================================================
+      # 3. 顯示 Python 版本
+      # ============================================================
 
-      - name: 執行主程式
-        run: python main.py
-
-      # ==============================
-      # 執行房價資料蒐集
-      # ==============================
-
-      - name: 執行房價資料蒐集
-        run: python data_collector.py
-
-      # ==============================
-      # 執行在售案源整理
-      # ==============================
-
-      - name: 執行在售案源整理
-        shell: bash
+      - name: 檢查 Python
         run: |
-          if [ -f "data/raw_listings.csv" ]; then
-            echo "找到 data/raw_listings.csv"
-            echo "開始整理在售物件"
+          python --version
 
-            python listing_collector.py \
-              data/raw_listings.csv \
-              data/current_listings.csv
-          else
-            echo "沒有 data/raw_listings.csv"
-            echo "略過今日在售案源整理"
+      # ============================================================
+      # 4. 官方實價成交資料
+      # ============================================================
 
-            rm -f data/current_listings.csv
-            rm -f data/listing_comparison.json
-          fi
-
-      # ==============================
-      # 執行房價分析
-      # ==============================
-
-      - name: 執行房價分析
-        run: python analyzer.py
-
-      # ==============================
-      # 在售物件 × 實價成交比價
-      # 優先使用第26階段
-      # ==============================
-
-      - name: 執行在售物件實價比價
-        shell: bash
+      - name: 取得官方實價資料
         run: |
-          if [ -f "data/current_listings.csv" ]; then
+          python data_collector.py
 
-            echo "=========================================="
-            echo "開始執行在售物件 × 實價成交比價"
-            echo "=========================================="
+      # ============================================================
+      # 5. 在售房源資料匯入
+      #
+      # incoming_listings.csv
+      #        ↓
+      # listing_importer.py
+      #        ↓
+      # raw_listings.csv
+      # ============================================================
 
-            if [ -f "listing_comparator_stage26.py" ]; then
-
-              echo "使用第26階段房仲實戰定價引擎"
-              echo "listing_comparator_stage26.py"
-
-              python listing_comparator_stage26.py
-
-            elif [ -f "listing_comparator.py" ]; then
-
-              echo "找不到第26階段程式"
-              echo "改用舊版 listing_comparator.py"
-
-              python listing_comparator.py
-
-            else
-
-              echo "錯誤：找不到任何比價程式"
-              exit 1
-
-            fi
-
-          else
-
-            echo "=========================================="
-            echo "沒有 data/current_listings.csv"
-            echo "略過在售物件實價比價"
-            echo "=========================================="
-
-            rm -f data/listing_comparison.json
-
-          fi
-
-      # ==============================
-      # 第29階段
-      # 房仲實戰價格決策引擎
-      # ==============================
-
-      - name: 執行房仲實戰價格決策引擎
-        shell: bash
+      - name: 匯入在售房源資料
         run: |
+          python listing_importer.py
 
+      # ============================================================
+      # 6. 在售房源資料整理
+      #
+      # raw_listings.csv
+      #        ↓
+      # listing_collector.py
+      #        ↓
+      # current_listings.csv
+      # ============================================================
+
+      - name: 整理目前在售房源
+        run: |
+          python listing_collector.py \
+            data/raw_listings.csv \
+            data/current_listings.csv
+
+      # ============================================================
+      # 7. 房源比較
+      # ============================================================
+
+      - name: 執行房源比較
+        run: |
+          python listing_comparator_stage26.py
+
+      # ============================================================
+      # 8. 目前仍使用既有正式 pricing_engine.py
+      #
+      # ⚠️ 本階段不切換 V6.2
+      # ============================================================
+
+      - name: 執行既有價格決策
+        run: |
+          python pricing_engine.py
+
+      # ============================================================
+      # 9. 產生報告
+      # ============================================================
+
+      - name: 產生房市報告
+        run: |
+          python report.py
+
+      # ============================================================
+      # 10. 顯示目前資料數量
+      # ============================================================
+
+      - name: 檢查輸出資料
+        run: |
           echo "=========================================="
-          echo "第29階段：房仲實戰價格決策引擎"
+          echo "第43階段：資料管線檢查"
           echo "=========================================="
 
-          if [ -f "data/current_listings.csv" ]; then
-
-            echo "找到 data/current_listings.csv"
-
-            if [ -f "pricing_engine.py" ]; then
-
-              echo "找到 pricing_engine.py"
-              echo "開始執行價格決策分析"
-
-              python pricing_engine.py
-
-            else
-
-              echo "錯誤：找不到 pricing_engine.py"
-              exit 1
-
-            fi
-
+          if [ -f data/incoming_listings.csv ]; then
+            echo "incoming_listings.csv：存在"
+            wc -l data/incoming_listings.csv
           else
-
-            echo "沒有 data/current_listings.csv"
-            echo "略過第29階段價格決策分析"
-
-            rm -f data/pricing_decisions.csv
-
+            echo "incoming_listings.csv：不存在"
           fi
 
-      # ==============================
-      # 產生每日房市報告
-      # ==============================
+          if [ -f data/raw_listings.csv ]; then
+            echo "raw_listings.csv：存在"
+            wc -l data/raw_listings.csv
+          else
+            echo "raw_listings.csv：不存在"
+          fi
 
-      - name: 產生每日房市報告
-        run: python report.py
+          if [ -f data/current_listings.csv ]; then
+            echo "current_listings.csv：存在"
+            wc -l data/current_listings.csv
+          else
+            echo "current_listings.csv：不存在"
+          fi
 
-      # ==============================
-      # 保存房價資料
-      # ==============================
+          if [ -f data/pricing_decisions.csv ]; then
+            echo "pricing_decisions.csv：存在"
+            wc -l data/pricing_decisions.csv
+          else
+            echo "pricing_decisions.csv：不存在"
+          fi
 
-      - name: 保存房價資料
-        uses: actions/upload-artifact@v4
-        with:
-          name: taipei-real-estate-data
-          path: data/taipei_transactions.csv
-          if-no-files-found: error
-          retention-days: 7
+          echo "=========================================="
 
-      # ==============================
-      # 將資料與報告回存 GitHub
-      # ==============================
+      # ============================================================
+      # 11. Commit 自動更新資料
+      # ============================================================
 
-      - name: 將資料與報告回存 GitHub
-        shell: bash
+      - name: 儲存每日資料
         run: |
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add data/taipei_transactions.csv
-          git add history/
-          git add reports/
+          git add data history reports || true
 
-          if [ -f "data/current_listings.csv" ]; then
-            git add data/current_listings.csv
-          else
-            git add -u -- data/current_listings.csv 2>/dev/null || true
-          fi
+          git diff --cached --quiet || \
+            git commit -m "每日房市資料更新"
 
-          if [ -f "data/listing_comparison.json" ]; then
-            git add data/listing_comparison.json
-          else
-            git add -u -- data/listing_comparison.json 2>/dev/null || true
-          fi
-
-          # ==============================
-          # 第29階段價格決策資料
-          # ==============================
-
-          if [ -f "data/pricing_decisions.csv" ]; then
-            echo "找到價格決策資料，加入 Git"
-            git add data/pricing_decisions.csv
-          else
-            echo "沒有新的 pricing_decisions.csv"
-            git add -u -- data/pricing_decisions.csv 2>/dev/null || true
-          fi
-
-          # ==============================
-          # 判斷是否需要 Commit
-          # ==============================
-
-          if git diff --cached --quiet; then
-
-            echo "沒有新的資料或報告需要 Commit"
-
-          else
-
-            echo "準備提交每日房市資料、價格決策與房市報告"
-
-            git commit -m "自動更新每日房市資料與房價決策"
-
-            git pull --rebase origin main
-
-            git push
-
-            echo "GitHub 資料回存完成"
-
-          fi
+          git push || true
