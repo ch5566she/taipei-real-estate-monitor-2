@@ -102,7 +102,7 @@ jobs:
 
       - name: 執行房源比較
         run: |
-          python listing_comparator_stage26.py
+          python listing_comparator.py
 
       # ============================================================
       # 8. 執行目前正式價格決策
