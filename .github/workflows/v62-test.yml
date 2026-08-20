@@ -1,0 +1,173 @@
+name: V6.2 價格引擎獨立測試
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-v62:
+    name: 測試 pricing_engine_v6_2.py
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 下載專案程式
+        uses: actions/checkout@v4
+
+      - name: 設定 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 檢查 Python 版本
+        run: |
+          python --version
+
+      - name: 檢查 V6.2 檔案
+        run: |
+          test -f pricing_engine_v6_2.py
+          echo "✅ pricing_engine_v6_2.py 存在"
+
+      - name: 檢查 V6.2 Python 語法
+        run: |
+          python -m py_compile pricing_engine_v6_2.py
+          echo "✅ V6.2 Python 語法正確"
+
+      - name: 檢查資料檔案
+        run: |
+          echo "檢查目前房源資料..."
+
+          test -f data/current_listings.csv
+          echo "✅ data/current_listings.csv"
+
+          test -f data/591_transactions.csv
+          echo "✅ data/591_transactions.csv"
+
+          test -f data/taipei_transactions.csv
+          echo "✅ data/taipei_transactions.csv"
+
+      - name: 載入 V6.2 模組
+        run: |
+          python - <<'PY'
+          import importlib.util
+
+          path = "pricing_engine_v6_2.py"
+
+          spec = importlib.util.spec_from_file_location(
+              "pricing_engine_v6_2",
+              path
+          )
+
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+
+          print("✅ pricing_engine_v6_2.py 成功載入")
+
+          functions = [
+              name for name in dir(module)
+              if callable(getattr(module, name))
+              and not name.startswith("_")
+          ]
+
+          print("V6.2 公開函式：")
+          for name in functions:
+              print(" -", name)
+
+          print("公開函式數量：", len(functions))
+          PY
+
+      - name: 檢查 V6.2 核心功能關鍵字
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          text = Path("pricing_engine_v6_2.py").read_text(
+              encoding="utf-8"
+          )
+
+          keywords = [
+              "品質",
+              "估價",
+              "資格",
+              "樣本",
+              "比較",
+              "price",
+              "quality",
+              "valuation",
+          ]
+
+          print("V6.2 核心功能檢查：")
+
+          found = []
+
+          for keyword in keywords:
+              if keyword.lower() in text.lower():
+                  found.append(keyword)
+                  print(f"  ✅ {keyword}")
+
+          print()
+          print("找到關鍵功能詞：", len(found))
+
+          if len(found) < 2:
+              raise SystemExit(
+                  "❌ V6.2 核心功能內容不足，停止測試"
+              )
+
+          print("✅ V6.2 核心功能內容檢查通過")
+          PY
+
+      - name: 檢查目前正式引擎
+        run: |
+          test -f pricing_engine.py
+          python -m py_compile pricing_engine.py
+          echo "✅ 目前正式 pricing_engine.py 語法正常"
+
+      - name: 確認 V6.2 不會覆蓋正式引擎
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          v62 = Path("pricing_engine_v6_2.py").read_text(
+              encoding="utf-8"
+          )
+
+          if "pricing_engine.py" in v62:
+              print(
+                  "⚠️ V6.2 程式內含 pricing_engine.py 字串，"
+                  "請人工確認是否為正常引用。"
+              )
+          else:
+              print("✅ V6.2 沒有直接修改正式引擎的指令")
+          PY
+
+      - name: 產生 V6.2 測試報告
+        run: |
+          mkdir -p reports/v6_2
+
+          cat > reports/v6_2/test_result.txt <<'EOF'
+          V6.2 PRICE ENGINE TEST
+          =======================
+
+          檔案：
+          pricing_engine_v6_2.py
+
+          測試項目：
+          1. Python 語法
+          2. 模組載入
+          3. 資料檔案存在性
+          4. 核心功能關鍵字
+          5. 正式 pricing_engine.py 狀態
+          6. V6.2 與正式引擎隔離
+
+          本次測試為：
+          V6.2 獨立測試
+
+          尚未進行：
+          正式 pricing_engine.py 接管
+          EOF
+
+          cat reports/v6_2/test_result.txt
+
+      - name: 上傳 V6.2 測試報告
+        uses: actions/upload-artifact@v4
+        with:
+          name: v6-2-test-report
+          path: reports/v6_2/
