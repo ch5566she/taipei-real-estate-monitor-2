@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-第十階段：每日房市專業報告＋市場判讀
+第31階段：每日房市專業報告＋房仲實戰價格決策
 
 功能：
 1. 讀取 data/taipei_transactions.csv
@@ -31,6 +31,9 @@ INPUT_FILE = os.path.join(BASE_DIR, "data", "taipei_transactions.csv")
 REPORT_DIR = os.path.join(BASE_DIR, "reports")
 LISTING_COMPARISON_FILE = os.path.join(
     BASE_DIR, "data", "listing_comparison.json"
+)
+PRICING_DECISIONS_FILE = os.path.join(
+    BASE_DIR, "data", "pricing_decisions.csv"
 )
 
 TARGET_DISTRICTS = [
@@ -1519,6 +1522,244 @@ def build_listing_comparison_section():
 
 
 
+# ============================================================
+# 第31階段：房仲實戰價格決策儀表板
+# ============================================================
+
+def load_pricing_decisions():
+    """讀取 pricing_engine.py 產生的 data/pricing_decisions.csv。
+
+    本區只負責展示決策引擎結果，不重新計算成交案例，避免報告頁與
+    第29/30階段的價格決策結果產生不一致。
+    """
+    path = PRICING_DECISIONS_FILE
+    if not os.path.exists(path):
+        return []
+
+    rows = []
+    try:
+        with open(path, "r", encoding="utf-8-sig", newline="") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                if not isinstance(row, dict):
+                    continue
+                rows.append(row)
+    except (OSError, csv.Error):
+        return []
+    return rows
+
+
+def pricing_value(row, key):
+    value = row.get(key)
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text == "":
+        return None
+    try:
+        return float(text.replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def pricing_int(row, key):
+    value = pricing_value(row, key)
+    if value is None:
+        return 0
+    return int(round(value))
+
+
+def pricing_text(row, key, default="—"):
+    value = row.get(key)
+    if value is None or str(value).strip() == "":
+        return default
+    return html_escape(value)
+
+
+def pricing_grade_class(grade):
+    grade = str(grade or "").strip()
+    if grade in ("價格偏低", "低於市場"):
+        return "pricing-good"
+    if grade in ("接近市場", "合理偏高", "接近／合理偏高"):
+        return "pricing-neutral"
+    if grade in ("偏高", "價格過高", "高於市場"):
+        return "pricing-high"
+    return "pricing-insufficient"
+
+
+def build_pricing_decision_section():
+    """把第29/30階段 pricing_decisions.csv 整合進每日報告。"""
+    rows = load_pricing_decisions()
+
+    if not rows:
+        return """
+        <section class="pricing-decision">
+            <div class="pricing-section-title">
+                <h2>💰 房仲實戰價格決策儀表板</h2>
+                <p>尚未找到 data/pricing_decisions.csv。請先執行房仲實戰價格決策引擎。</p>
+            </div>
+        </section>
+        """
+
+    # 價格等級統計；兼容舊版與新版文字。
+    counts = {
+        "低於市場": 0,
+        "接近市場": 0,
+        "高於市場": 0,
+        "樣本不足": 0,
+    }
+    grade_alias = {
+        "價格偏低": "低於市場",
+        "價格過高": "高於市場",
+        "偏高": "高於市場",
+        "合理偏高": "接近市場",
+        "接近／合理偏高": "接近市場",
+    }
+    for row in rows:
+        raw = str(row.get("price_grade") or "樣本不足").strip()
+        bucket = grade_alias.get(raw, raw)
+        if bucket not in counts:
+            bucket = "樣本不足"
+        counts[bucket] += 1
+
+    total = len(rows)
+    cards = f"""
+        <div class="pricing-summary-grid">
+            <div class="pricing-summary-card">
+                <div class="pricing-summary-label">分析物件</div>
+                <div class="pricing-summary-value">{total:,}</div>
+                <div class="pricing-summary-unit">筆</div>
+            </div>
+            <div class="pricing-summary-card pricing-good">
+                <div class="pricing-summary-label">低於市場</div>
+                <div class="pricing-summary-value">{counts['低於市場']:,}</div>
+                <div class="pricing-summary-unit">筆</div>
+            </div>
+            <div class="pricing-summary-card pricing-neutral">
+                <div class="pricing-summary-label">接近市場</div>
+                <div class="pricing-summary-value">{counts['接近市場']:,}</div>
+                <div class="pricing-summary-unit">筆</div>
+            </div>
+            <div class="pricing-summary-card pricing-high">
+                <div class="pricing-summary-label">高於市場</div>
+                <div class="pricing-summary-value">{counts['高於市場']:,}</div>
+                <div class="pricing-summary-unit">筆</div>
+            </div>
+            <div class="pricing-summary-card pricing-insufficient">
+                <div class="pricing-summary-label">樣本不足</div>
+                <div class="pricing-summary-value">{counts['樣本不足']:,}</div>
+                <div class="pricing-summary-unit">筆</div>
+            </div>
+        </div>
+        <div class="pricing-method-note">
+            <strong>決策來源：</strong>直接讀取 <code>data/pricing_decisions.csv</code>，
+            顯示第29/30階段價格決策引擎的結果；本頁不重新計算成交案例。
+        </div>
+    """
+
+    item_blocks = []
+    for index, row in enumerate(rows, start=1):
+        grade = str(row.get("price_grade") or "樣本不足").strip()
+        grade_class = pricing_grade_class(grade)
+        confidence = str(row.get("confidence") or "低").strip()
+        summary = row.get("comparable_grade_summary") or (
+            f"A{pricing_int(row, 'grade_a_count')}/"
+            f"B{pricing_int(row, 'grade_b_count')}/"
+            f"C{pricing_int(row, 'grade_c_count')}"
+        )
+        current_unit = pricing_value(row, "current_unit_price")
+        weighted_unit = pricing_value(row, "weighted_market_unit_price")
+        median_unit = pricing_value(row, "median_transaction_unit_price")
+        gap = pricing_value(row, "price_gap_percent")
+        low_price = pricing_value(row, "reasonable_low_price")
+        high_price = pricing_value(row, "reasonable_high_price")
+        buyer_first = pricing_value(row, "buyer_first_price")
+        buyer_max = pricing_value(row, "buyer_max_price")
+        seller_price = pricing_value(row, "seller_reasonable_price")
+        negotiation = pricing_value(row, "negotiation_percent")
+
+        if grade == "樣本不足":
+            action = "先補足同類型成交樣本，再做正式議價判斷。"
+        elif grade in ("價格過高", "偏高", "高於市場"):
+            action = "列入議價重點；先確認屋況、樓層、車位與裝潢差異，再以成交基準回推合理價格。"
+        elif grade in ("價格偏低", "低於市場"):
+            action = "價格具有吸引力，但仍應檢查是否存在特殊瑕疵、權利或產品差異。"
+        else:
+            action = "價格接近市場，可把重點放在產品優缺點、付款條件與議價空間。"
+
+        comparable_info = f"""
+            <div class="pricing-comparable-meta">
+                <span>A級 {pricing_int(row, 'grade_a_count')} 筆</span>
+                <span>B級 {pricing_int(row, 'grade_b_count')} 筆</span>
+                <span>C級 {pricing_int(row, 'grade_c_count')} 筆</span>
+                <span>核心 {pricing_int(row, 'core_comparable_count')} 筆</span>
+                <span>排除 {pricing_int(row, 'excluded_count')} 筆</span>
+            </div>
+        """
+
+        item_blocks.append(f"""
+            <article class="pricing-item">
+                <div class="pricing-item-header">
+                    <div>
+                        <div class="pricing-item-number">物件 #{index}｜{pricing_text(row, 'listing_id')}</div>
+                        <h3>{pricing_text(row, 'title', '未命名在售物件')}</h3>
+                        <div class="pricing-location">
+                            {pricing_text(row, 'district', '')}｜{pricing_text(row, 'location', '未提供位置')}
+                        </div>
+                    </div>
+                    <div class="pricing-badge {grade_class}">
+                        <strong>{html_escape(grade)}</strong>
+                        <span>信心：{html_escape(confidence)}</span>
+                    </div>
+                </div>
+
+                <div class="pricing-facts">
+                    <div><span>目前開價</span><strong>{money(pricing_value(row, 'current_price'))} 萬</strong></div>
+                    <div><span>目前開價單價</span><strong>{money(current_unit)} 萬／坪</strong></div>
+                    <div><span>加權市場單價</span><strong>{money(weighted_unit)} 萬／坪</strong></div>
+                    <div><span>價格差距</span><strong>{format_percent(gap)}</strong></div>
+                </div>
+
+                <div class="pricing-decision-grid">
+                    <div class="pricing-analysis-card">
+                        <h4>📊 市場基準</h4>
+                        <p>加權市場單價：<strong>{money(weighted_unit)} 萬／坪</strong></p>
+                        <p>成交中位單價：<strong>{money(median_unit)} 萬／坪</strong></p>
+                        <p>比較樣本：<strong>{pricing_int(row, 'comparable_count')} 筆</strong></p>
+                        <p>案例品質：<strong>{html_escape(summary)}</strong></p>
+                        {comparable_info}
+                    </div>
+                    <div class="pricing-analysis-card pricing-action-card">
+                        <h4>💰 房仲議價決策</h4>
+                        <p>合理價格：<strong>{money(low_price)} ～ {money(high_price)} 萬</strong></p>
+                        <p>買方第一口：<strong>{money(buyer_first)} 萬</strong></p>
+                        <p>買方最高價：<strong>{money(buyer_max)} 萬</strong></p>
+                        <p>賣方合理價：<strong>{money(seller_price)} 萬</strong></p>
+                        <p>理論議價幅度：<strong>{format_percent(negotiation)}</strong></p>
+                    </div>
+                </div>
+
+                <div class="pricing-action-note">
+                    <strong>🎯 實戰建議：</strong>{html_escape(action)}
+                </div>
+                <div class="pricing-safety-note">
+                    ⚠️ 本區間屬資料模型的決策輔助，不代表保證成交價；樣本不足時不得把空白價格區間解讀成零元或無議價空間。
+                </div>
+            </article>
+        """)
+
+    return f"""
+    <section class="pricing-decision">
+        <div class="pricing-section-title">
+            <h2>💰 房仲實戰價格決策儀表板</h2>
+            <p>把「目前在售開價」與「實價成交模型」轉成可直接拿來談案、估價、議價的決策資訊。</p>
+        </div>
+        {cards}
+        {''.join(item_blocks)}
+    </section>
+    """
+
+
 def create_html(report):
     # ============================================================
     # 第12-1階段：士林／北投市場總覽
@@ -1592,6 +1833,7 @@ def create_html(report):
     """
     market_analysis = build_market_comparison(report)
     listing_comparison_html = build_listing_comparison_section()
+    pricing_decision_html = build_pricing_decision_section()
 
     generated_at = report[
         "generated_at"
@@ -2203,6 +2445,108 @@ footer {{
     line-height: 1.7;
 }}
 
+
+
+.pricing-decision {{
+    margin: 25px 0 30px 0;
+    padding: 24px;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+}}
+
+.pricing-section-title h2 {{ margin: 0 0 8px 0; }}
+.pricing-section-title p {{ margin: 0 0 18px 0; color: #64748b; line-height: 1.8; }}
+
+.pricing-summary-grid {{
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin: 18px 0;
+}}
+
+.pricing-summary-card {{
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px;
+}}
+.pricing-summary-card.pricing-good {{ background: #f0fdf4; border-color: #bbf7d0; }}
+.pricing-summary-card.pricing-neutral {{ background: #eff6ff; border-color: #bfdbfe; }}
+.pricing-summary-card.pricing-high {{ background: #fff7ed; border-color: #fed7aa; }}
+.pricing-summary-card.pricing-insufficient {{ background: #f8fafc; border-color: #cbd5e1; }}
+.pricing-summary-label {{ color: #64748b; font-size: 13px; }}
+.pricing-summary-value {{ margin-top: 5px; font-size: 23px; font-weight: 700; }}
+.pricing-summary-unit {{ color: #64748b; font-size: 12px; }}
+
+.pricing-method-note {{
+    margin: 16px 0 20px 0;
+    padding: 14px 16px;
+    background: #eff6ff;
+    border-left: 4px solid #2563eb;
+    border-radius: 8px;
+    color: #475569;
+    line-height: 1.7;
+}}
+.pricing-method-note code {{ background: #e2e8f0; padding: 2px 5px; border-radius: 4px; }}
+
+.pricing-item {{
+    margin-top: 22px;
+    padding: 20px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #ffffff;
+}}
+.pricing-item-header {{ display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }}
+.pricing-item-number {{ color: #2563eb; font-size: 12px; font-weight: 700; margin-bottom: 4px; }}
+.pricing-item-header h3 {{ margin: 0 0 6px 0; }}
+.pricing-location {{ color: #64748b; font-size: 13px; }}
+
+.pricing-badge {{
+    min-width: 150px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+}}
+.pricing-badge strong {{ display: block; margin-bottom: 4px; }}
+.pricing-badge span {{ display: block; color: #64748b; font-size: 12px; }}
+.pricing-badge.pricing-good {{ background: #f0fdf4; border-color: #86efac; }}
+.pricing-badge.pricing-neutral {{ background: #eff6ff; border-color: #93c5fd; }}
+.pricing-badge.pricing-high {{ background: #fff7ed; border-color: #fdba74; }}
+.pricing-badge.pricing-insufficient {{ background: #f8fafc; border-color: #cbd5e1; }}
+
+.pricing-facts {{
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 18px 0;
+}}
+.pricing-facts > div {{ padding: 12px; background: #f8fafc; border-radius: 8px; }}
+.pricing-facts span {{ display: block; color: #64748b; font-size: 12px; margin-bottom: 5px; }}
+.pricing-facts strong {{ font-size: 17px; }}
+
+.pricing-decision-grid {{
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin: 16px 0;
+}}
+.pricing-analysis-card {{
+    padding: 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    line-height: 1.7;
+}}
+.pricing-analysis-card h4 {{ margin: 0 0 8px 0; }}
+.pricing-analysis-card p {{ margin: 5px 0; }}
+.pricing-action-card {{ background: #f0fdf4; border-color: #bbf7d0; }}
+.pricing-comparable-meta {{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }}
+.pricing-comparable-meta span {{ background: #e2e8f0; padding: 3px 7px; border-radius: 999px; font-size: 11px; color: #475569; }}
+.pricing-action-note {{ margin-top: 14px; padding: 14px 16px; background: #eff6ff; border-left: 4px solid #2563eb; border-radius: 8px; line-height: 1.8; }}
+.pricing-safety-note {{ margin-top: 10px; color: #64748b; font-size: 12px; line-height: 1.7; }}
+
 @media(max-width:700px) {{
 
     .district {{
@@ -2267,6 +2611,8 @@ footer {{
         {market_analysis}
 
         {listing_comparison_html}
+
+        {pricing_decision_html}
 
         {cards}
 
@@ -2353,7 +2699,7 @@ def save_reports(report):
 
     print()
     print("=" * 70)
-    print("第九階段房市報告完成")
+    print("第31階段房市報告完成")
     print("=" * 70)
 
     print()
