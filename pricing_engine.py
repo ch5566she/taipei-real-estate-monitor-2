@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 """
-第31階段：房仲實戰價格決策引擎 V5
-A/B/C/D/E/F 多層級可比＋異常值過濾＋排除原因分析版
+第32階段：房仲實戰價格決策引擎 V6
+A/B/C 正式估價＋D行情參考＋E/F排除＋異常值過濾版
 
 功能：
 
@@ -25,7 +25,7 @@ A/B/C/D/E/F 多層級可比＋異常值過濾＋排除原因分析版
 
 5. 先取最多 24 筆候選，過濾異常值後最多保留 12 筆有效可比成交
 
-6. 核心 A/B 不足時，依序啟用 C/D/E/F 擴充樣本；統計異常值過濾後仍不足 3 筆才不輸出精確議價
+6. 正式估價僅使用 A/B/C；D 僅作行情參考；E/F 不得進入正式價格計算
 
 7. 3～12 筆：
    使用中位數＋加權中位數
@@ -1533,29 +1533,42 @@ def decision_for_listing(listing, transactions):
     e_count = sum(1 for x in comparables if x["tier"] == "E")
     f_count = sum(1 for x in comparables if x["tier"] == "F")
 
-    # 先依品質選擇估價樣本：
-    # 1) A/B >= 3：只用 A/B
-    # 2) A/B/C >= 3：用 A/B/C
-    # 3) A/B/C/D >= 3：用 A/B/C/D
-    # 4) 否則才逐級使用 E / F 擴充
+    # ========================================================
+    # V6：統一正式估價規則
+    #
+    # A/B：最高品質核心樣本
+    # C：可納入正式估價，但降低信心
+    # D：僅作行情參考
+    # E/F：完全不得進入正式價格計算
+    #
+    # 正式估價至少需要 A+B+C 合計 3 筆。
+    # ========================================================
+
+    core_count = a_count + b_count + c_count
+
     if a_count + b_count >= 3:
-        selected = [x for x in comparables if x["tier"] in ("A", "B")]
-        sample_mode = "核心A/B"
-    elif a_count + b_count + c_count >= 3:
-        selected = [x for x in comparables if x["tier"] in ("A", "B", "C")]
-        sample_mode = "核心A/B＋C"
-    elif a_count + b_count + c_count + d_count >= 3:
-        selected = [x for x in comparables if x["tier"] in ("A", "B", "C", "D")]
-        sample_mode = "核心＋D擴充"
-    elif a_count + b_count + c_count + d_count + e_count >= 3:
         selected = [
             x for x in comparables
-            if x["tier"] in ("A", "B", "C", "D", "E")
+            if x["tier"] in ("A", "B")
         ]
-        sample_mode = "核心＋E擴充"
+        sample_mode = "正式核心A/B"
+
+    elif core_count >= 3:
+        selected = [
+            x for x in comparables
+            if x["tier"] in ("A", "B", "C")
+        ]
+        sample_mode = "正式核心A/B/C"
+
     else:
-        selected = list(comparables)
-        sample_mode = "完整A/B/C/D/E/F擴充"
+        # A/B/C 不足 3 筆：
+        # 只保留 A/B/C 作為行情參考，
+        # D/E/F 不得進入正式價格計算。
+        selected = [
+            x for x in comparables
+            if x["tier"] in ("A", "B", "C")
+        ]
+        sample_mode = "正式樣本不足"
 
     # 若同級樣本很多，仍保留最高分的12筆
     selected = sorted(
@@ -1622,15 +1635,20 @@ def decision_for_listing(listing, transactions):
         else None
     )
 
-    # 高品質樣本越少，越降低加權估價對擴充樣本的信任
-    if sample_mode == "核心A/B":
+    # ========================================================
+    # V6：正式估價權重
+    #
+    # A/B：最高品質
+    # A/B/C：正式估價，但 C 的權重較低
+    # D/E/F 不會進入 selected，因此不得影響正式價格。
+    # ========================================================
+
+    if sample_mode == "正式核心A/B":
         weighted_ratio = 0.80
-    elif sample_mode == "核心A/B＋C":
+    elif sample_mode == "正式核心A/B/C":
         weighted_ratio = 0.75
-    elif sample_mode == "核心＋D擴充":
-        weighted_ratio = 0.68
     else:
-        weighted_ratio = 0.60
+        weighted_ratio = 0.70
 
     fair_unit = (
         weighted_unit * weighted_ratio
@@ -1639,8 +1657,18 @@ def decision_for_listing(listing, transactions):
 
     fair_price = fair_unit * listing["area"]
 
-    # 少於3筆：仍不產生精確議價區間
-    if comparable_count < MIN_COMPARABLES:
+    # ========================================================
+    # V6：正式樣本不足
+    #
+    # A/B/C 不足 3 筆：
+    # 不輸出正式合理價格、買方價、賣方價。
+    # 僅保留市場參考統計。
+    # ========================================================
+
+    if (
+        core_count < MIN_COMPARABLES
+        or comparable_count < MIN_COMPARABLES
+    ):
         price_gap = (
             ((current_unit / fair_unit) - 1) * 100
             if fair_unit
@@ -1658,14 +1686,17 @@ def decision_for_listing(listing, transactions):
             "median_transaction_price": money(median_total),
             "median_transaction_unit_price": money(median_unit),
             "price_gap_percent": money(price_gap),
+
             "reasonable_low_price": None,
             "reasonable_high_price": None,
             "buyer_first_price": None,
             "buyer_max_price": None,
             "seller_reasonable_price": None,
             "negotiation_percent": None,
+
             "price_grade": "樣本不足",
             "confidence": "低",
+
             "core_comparable_count": a_count + b_count,
             "grade_a_count": a_count,
             "grade_b_count": b_count,
@@ -1673,8 +1704,10 @@ def decision_for_listing(listing, transactions):
             "grade_d_count": d_count,
             "grade_e_count": e_count,
             "extension_comparable_count": extension_count,
+
             "excluded_count": sum(exclusion_counts.values()),
             "excluded_reasons": excluded_reasons,
+
             "weighted_market_unit_price": money(weighted_unit),
             "comparable_grade_summary": grade_summary,
         }
@@ -1806,7 +1839,7 @@ def main():
     )
 
     print(
-        "第31階段：房仲實戰價格決策引擎 V5"
+        "第32階段：房仲實戰價格決策引擎 V6"
     )
 
     print(
