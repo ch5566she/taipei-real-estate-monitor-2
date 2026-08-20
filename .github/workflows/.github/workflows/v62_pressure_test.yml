@@ -1,0 +1,173 @@
+name: V6.2 價格引擎壓力測試
+
+on:
+  workflow_dispatch:
+
+jobs:
+  pressure-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 設定 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 檢查 Python
+        run: |
+          python --version
+
+      - name: 檢查 V6.2 程式
+        run: |
+          test -f pricing_engine_v6_2.py
+          echo "找到 pricing_engine_v6_2.py"
+
+      - name: 檢查 V6.2 輸出欄位
+        run: |
+          python - <<'PY'
+          import csv
+          from pathlib import Path
+
+          p = Path("data/pricing_decisions.csv")
+
+          if not p.exists():
+              print("尚未找到 data/pricing_decisions.csv")
+              print("這一步只做結構檢查，不讓測試因輸出檔不存在而誤判。")
+          else:
+              with p.open("r", encoding="utf-8-sig", newline="") as f:
+                  reader = csv.DictReader(f)
+                  fields = reader.fieldnames or []
+
+              required = [
+                  "formal_valuation_eligible",
+                  "formal_valuation_reason",
+                  "core_comparable_count",
+                  "grade_a_count",
+                  "grade_b_count",
+                  "grade_c_count",
+                  "grade_d_count",
+                  "grade_e_count",
+                  "grade_f_count",
+                  "sample_quality_score",
+                  "sample_quality_grade",
+                  "market_reference_level",
+                  "market_reference_confidence",
+                  "v62_warning",
+              ]
+
+              missing = [x for x in required if x not in fields]
+
+              if missing:
+                  raise SystemExit(
+                      "缺少 V6.2 欄位: " + ", ".join(missing)
+                  )
+
+              print("V6.2 欄位檢查 PASS")
+              for field in required:
+                  print("  OK:", field)
+          PY
+
+      - name: 建立壓力測試規格
+        run: |
+          mkdir -p reports/v62_pressure_test
+
+          cat > reports/v62_pressure_test/TEST_SPEC.md <<'EOF'
+          # V6.2 壓力測試規格
+
+          ## TEST-01
+          A/B/C 正式估價樣本足夠
+
+          預期：
+          - formal_valuation_eligible = true
+          - weighted_market_unit_price 不得為 None
+          - 可以產生正式估價
+
+          ## TEST-02
+          只有 D 類樣本
+
+          預期：
+          - formal_valuation_eligible = false
+          - 不得產生正式估價
+          - D 只能作市場參考
+
+          ## TEST-03
+          只有 E/F 類樣本
+
+          預期：
+          - formal_valuation_eligible = false
+          - E/F 不得進入正式價格計算
+
+          ## TEST-04
+          A/B/C 不足，但 D/E/F 很多
+
+          預期：
+          - formal_valuation_eligible = false
+          - weighted_market_unit_price = None
+          - 不得因為參考樣本很多而產生正式估價
+          EOF
+
+          cat reports/v62_pressure_test/TEST_SPEC.md
+
+      - name: 檢查現有 V6.2 真實資料結果
+        run: |
+          python - <<'PY'
+          import csv
+          from pathlib import Path
+
+          p = Path("data/pricing_decisions.csv")
+
+          if not p.exists():
+              print("目前 repository 沒有 pricing_decisions.csv")
+              raise SystemExit(0)
+
+          with p.open("r", encoding="utf-8-sig", newline="") as f:
+              rows = list(csv.DictReader(f))
+
+          print("目前資料筆數:", len(rows))
+
+          for i, row in enumerate(rows, 1):
+              print()
+              print("========== 房源", i, "==========")
+
+              for key in [
+                  "listing_id",
+                  "formal_valuation_eligible",
+                  "formal_valuation_reason",
+                  "core_comparable_count",
+                  "grade_a_count",
+                  "grade_b_count",
+                  "grade_c_count",
+                  "grade_d_count",
+                  "grade_e_count",
+                  "grade_f_count",
+                  "sample_quality_score",
+                  "sample_quality_grade",
+                  "market_reference_level",
+                  "market_reference_confidence",
+                  "v62_warning",
+              ]:
+                  print(f"{key}: {row.get(key)}")
+          PY
+
+      - name: 輸出測試結論
+        run: |
+          echo "=========================================="
+          echo "V6.2 壓力測試框架建立完成"
+          echo "=========================================="
+          echo "TEST-01：A/B/C 足夠"
+          echo "TEST-02：只有 D"
+          echo "TEST-03：只有 E/F"
+          echo "TEST-04：A/B/C 不足 + D/E/F 很多"
+          echo "=========================================="
+          echo "下一階段才會注入人工測試資料。"
+          echo "本 Workflow 不修改正式估價結果。"
+          echo "=========================================="
+
+      - name: 上傳壓力測試規格
+        uses: actions/upload-artifact@v4
+        with:
+          name: v62-pressure-test-spec
+          path: reports/v62_pressure_test/
