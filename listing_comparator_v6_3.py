@@ -1,38 +1,30 @@
 # -*- coding: utf-8 -*-
+
 """
 台北市士林區 / 北投區
-V6.3 智慧比較樣本引擎
+V6.3 智慧比較樣本分析層
 
-第46階段
+設計原則：
 
-設計目標：
-1. 不修改既有 V6.2 comparator
-2. 建立獨立 V6.3 比較引擎
-3. 採分層比較樣本搜尋
-4. 對比較樣本進行品質評分
-5. 優先使用高品質樣本
-6. 高品質樣本不足時，自動放寬搜尋條件
-7. 保留「樣本不足」機制，不強行估價
+V6.2：
+    負責真正的比較樣本選擇與價格計算
 
-比較層級：
+V6.3：
+    不重新估價
+    不修改 V6.2
+    只負責：
 
-Level 1
-同社區 / 同大樓
+    1. A/B/C/D/E/F 樣本診斷
+    2. 核心樣本充足度
+    3. 市場單價分析
+    4. 開價偏離分析
+    5. 價格定位
+    6. 信心度
+    7. 房仲文字判讀
+    8. JSON / CSV 輸出
 
-Level 2
-同路段
-
-Level 3
-同行政區 + 相近坪數 + 相近建物類型
-
-Level 4
-同行政區 + 相近坪數
-
-Level 5
-同行政區
-
-最後：
-樣本不足
+資料來源：
+    data/pricing_decisions.csv
 """
 
 from __future__ import annotations
@@ -40,39 +32,43 @@ from __future__ import annotations
 import csv
 import json
 import math
-import os
-import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 
 # ============================================================
-# 基本設定
+# 路徑
 # ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 
-TRANSACTIONS_FILE = DATA_DIR / "591_transactions.csv"
-LISTINGS_FILE = DATA_DIR / "incoming_listings.csv"
+INPUT_FILE = DATA_DIR / "pricing_decisions.csv"
 
-OUTPUT_FILE = DATA_DIR / "listing_comparison_v6_3.json"
-
-
-# 最低樣本門檻
-MIN_SAMPLES = 3
-
-# 最多使用比較樣本
-MAX_SAMPLES = 10
+OUTPUT_JSON = DATA_DIR / "comparison_analysis_v6_3.json"
+OUTPUT_CSV = DATA_DIR / "comparison_analysis_v6_3.csv"
 
 
 # ============================================================
-# 工具函式
+# 基本設定
+# ============================================================
+
+MIN_CORE_SAMPLES = 3
+
+# 開價偏離門檻
+HIGH_PRICE_THRESHOLD = 0.10
+VERY_HIGH_PRICE_THRESHOLD = 0.20
+
+LOW_PRICE_THRESHOLD = -0.10
+VERY_LOW_PRICE_THRESHOLD = -0.20
+
+
+# ============================================================
+# 基本工具
 # ============================================================
 
 def safe_float(value: Any) -> float | None:
-    """安全轉換數字。"""
 
     if value is None:
         return None
@@ -82,9 +78,13 @@ def safe_float(value: Any) -> float | None:
     if not text:
         return None
 
-    text = text.replace(",", "")
-    text = text.replace("萬", "")
-    text = text.replace("元", "")
+    text = (
+        text
+        .replace(",", "")
+        .replace("%", "")
+        .replace("萬", "")
+        .replace("元", "")
+    )
 
     try:
         return float(text)
@@ -92,100 +92,21 @@ def safe_float(value: Any) -> float | None:
         return None
 
 
-def normalize_text(value: Any) -> str:
-    """標準化文字。"""
+def safe_int(value: Any) -> int:
 
-    if value is None:
-        return ""
+    number = safe_float(value)
 
-    return re.sub(r"\s+", "", str(value).strip())
+    if number is None:
+        return 0
 
+    return int(number)
 
-def extract_number(text: str) -> float | None:
-    """從文字中抓第一個數字。"""
-
-    if not text:
-        return None
-
-    match = re.search(r"\d+(?:\.\d+)?", text)
-
-    if not match:
-        return None
-
-    try:
-        return float(match.group())
-    except ValueError:
-        return None
-
-
-def normalize_road(location: str) -> str:
-    """
-    標準化路段名稱。
-
-    例如：
-    德行西路88號
-    德行西路 88 號
-
-    → 德行西路
-    """
-
-    text = normalize_text(location)
-
-    if not text:
-        return ""
-
-    # 去除門牌號碼
-    text = re.sub(r"\d+(?:-\d+)*號.*$", "", text)
-
-    # 去除樓層
-    text = re.sub(r"[Bb]\d+[F樓].*$", "", text)
-    text = re.sub(r"\d+[F樓].*$", "", text)
-
-    return text
-
-
-def normalize_building_type(value: Any) -> str:
-    """標準化建物類型。"""
-
-    text = normalize_text(value)
-
-    if not text:
-        return ""
-
-    mapping = {
-        "電梯大樓": "電梯大樓",
-        "華廈": "華廈",
-        "公寓": "公寓",
-        "透天": "透天",
-        "透天厝": "透天",
-        "大樓": "電梯大樓",
-    }
-
-    for key, result in mapping.items():
-        if key in text:
-            return result
-
-    return text
-
-
-def extract_floor(value: Any) -> float | None:
-    """取得樓層數字。"""
-
-    return extract_number(normalize_text(value))
-
-
-# ============================================================
-# CSV 讀取
-# ============================================================
 
 def read_csv(path: Path) -> list[dict[str, Any]]:
-    """讀取 CSV。"""
 
     if not path.exists():
-        print(f"⚠️ 找不到資料檔：{path}")
+        print(f"❌ 找不到資料檔：{path}")
         return []
-
-    rows: list[dict[str, Any]] = []
 
     with path.open(
         "r",
@@ -195,679 +116,635 @@ def read_csv(path: Path) -> list[dict[str, Any]]:
 
         reader = csv.DictReader(file)
 
-        for row in reader:
-            rows.append(dict(row))
-
-    return rows
+        return [
+            dict(row)
+            for row in reader
+        ]
 
 
 # ============================================================
-# 建立標準化交易資料
+# 樣本統計
 # ============================================================
 
-def normalize_transaction(row: dict[str, Any]) -> dict[str, Any]:
-    """將交易資料轉成比較引擎使用格式。"""
+def sample_statistics(row: dict[str, Any]) -> dict[str, Any]:
 
-    location = normalize_text(
-        row.get("location")
-        or row.get("address")
-        or row.get("路段")
-        or ""
+    a = safe_int(row.get("grade_a_count"))
+    b = safe_int(row.get("grade_b_count"))
+    c = safe_int(row.get("grade_c_count"))
+    d = safe_int(row.get("grade_d_count"))
+    e = safe_int(row.get("grade_e_count"))
+
+    extension = safe_int(
+        row.get("extension_comparable_count")
     )
 
-    district = normalize_text(
-        row.get("district")
-        or row.get("行政區")
-        or ""
+    comparable = safe_int(
+        row.get("comparable_count")
     )
 
-    building_type = normalize_building_type(
-        row.get("building_type")
-        or row.get("建物型態")
-        or ""
+    core = safe_int(
+        row.get("core_comparable_count")
     )
 
-    area = safe_float(
-        row.get("building_area")
-        or row.get("area")
-        or row.get("建物面積")
-        or row.get("坪數")
+    excluded = safe_int(
+        row.get("excluded_count")
     )
 
-    unit_price = safe_float(
-        row.get("unit_price")
-        or row.get("單價")
-        or row.get("price_per_ping")
-    )
+    # --------------------------------------------------------
+    # 核心樣本
+    # --------------------------------------------------------
 
-    floor = extract_floor(
-        row.get("floor")
-        or row.get("樓層")
-        or ""
-    )
+    core_abc = a + b + c
+
+    # --------------------------------------------------------
+    # A/B 高品質核心
+    # --------------------------------------------------------
+
+    core_ab = a + b
+
+    # --------------------------------------------------------
+    # 計算比例
+    # --------------------------------------------------------
+
+    if comparable > 0:
+        core_ratio = core_abc / comparable
+    else:
+        core_ratio = 0.0
+
+    if comparable > 0:
+        ab_ratio = core_ab / comparable
+    else:
+        ab_ratio = 0.0
 
     return {
-        "raw": row,
-        "district": district,
-        "location": location,
-        "road": normalize_road(location),
-        "building_type": building_type,
-        "area": area,
-        "unit_price": unit_price,
-        "floor": floor,
+        "grade_a_count": a,
+        "grade_b_count": b,
+        "grade_c_count": c,
+        "grade_d_count": d,
+        "grade_e_count": e,
+        "extension_comparable_count": extension,
+        "comparable_count": comparable,
+        "core_comparable_count": core,
+        "core_ab_count": core_ab,
+        "core_abc_count": core_abc,
+        "excluded_count": excluded,
+        "core_ratio": round(
+            core_ratio * 100,
+            2
+        ),
+        "ab_ratio": round(
+            ab_ratio * 100,
+            2
+        ),
     }
 
 
 # ============================================================
-# 標準化在售物件
+# 樣本品質
 # ============================================================
 
-def normalize_listing(row: dict[str, Any]) -> dict[str, Any]:
-    """將在售物件轉成比較引擎格式。"""
+def evaluate_sample_quality(
+    stats: dict[str, Any],
+    confidence: str | None,
+) -> tuple[str, str]:
 
-    location = normalize_text(
-        row.get("location")
-        or row.get("address")
-        or ""
-    )
-
-    district = normalize_text(
-        row.get("district")
-        or ""
-    )
-
-    building_type = normalize_building_type(
-        row.get("building_type")
-        or ""
-    )
-
-    area = safe_float(
-        row.get("building_area")
-        or row.get("area")
-        or ""
-    )
-
-    unit_price = safe_float(
-        row.get("unit_price")
-        or ""
-    )
-
-    floor = extract_floor(
-        row.get("floor")
-        or ""
-    )
-
-    return {
-        "raw": row,
-        "listing_id": row.get("listing_id", ""),
-        "title": row.get("title", ""),
-        "district": district,
-        "location": location,
-        "road": normalize_road(location),
-        "building_type": building_type,
-        "area": area,
-        "unit_price": unit_price,
-        "floor": floor,
-    }
-
-
-# ============================================================
-# 坪數相似度
-# ============================================================
-
-def area_score(target: float | None, sample: float | None) -> float:
-    """
-    坪數相似度。
-
-    越接近 100 越好。
-    """
-
-    if target is None or sample is None:
-        return 0.0
-
-    if target <= 0:
-        return 0.0
-
-    diff_ratio = abs(sample - target) / target
-
-    if diff_ratio <= 0.05:
-        return 100.0
-
-    if diff_ratio <= 0.10:
-        return 80.0
-
-    if diff_ratio <= 0.15:
-        return 60.0
-
-    if diff_ratio <= 0.25:
-        return 35.0
-
-    return 10.0
-
-
-# ============================================================
-# 樓層相似度
-# ============================================================
-
-def floor_score(target: float | None, sample: float | None) -> float:
-    """樓層相似度。"""
-
-    if target is None or sample is None:
-        return 0.0
-
-    diff = abs(target - sample)
-
-    if diff == 0:
-        return 100.0
-
-    if diff <= 2:
-        return 80.0
-
-    if diff <= 4:
-        return 60.0
-
-    if diff <= 7:
-        return 35.0
-
-    return 10.0
-
-
-# ============================================================
-# 樣本品質評分
-# ============================================================
-
-def calculate_quality(
-    target: dict[str, Any],
-    sample: dict[str, Any],
-) -> tuple[int, list[str]]:
-    """
-    計算比較樣本品質。
-
-    分數越高代表越適合拿來估價。
-    """
-
-    score = 0
-    reasons: list[str] = []
+    core_abc = stats["core_abc_count"]
+    core_ab = stats["core_ab_count"]
+    comparable = stats["comparable_count"]
 
     # --------------------------------------------------------
-    # 行政區
+    # 完全不足
+    # --------------------------------------------------------
+
+    if core_abc < MIN_CORE_SAMPLES:
+
+        return (
+            "低",
+            "A/B/C 核心比較樣本不足3筆，"
+            "不宜視為正式市場估價依據。"
+        )
+
+    # --------------------------------------------------------
+    # 高品質
     # --------------------------------------------------------
 
     if (
-        target["district"]
-        and sample["district"]
-        and target["district"] == sample["district"]
+        core_ab >= 5
+        and comparable >= 5
     ):
-        score += 20
-        reasons.append("同行政區")
 
-    # --------------------------------------------------------
-    # 路段
-    # --------------------------------------------------------
+        return (
+            "高",
+            "A/B 高品質比較樣本充足，"
+            "且核心樣本占比良好。"
+        )
 
     if (
-        target["road"]
-        and sample["road"]
-        and target["road"] == sample["road"]
+        core_abc >= 5
+        and comparable >= 5
     ):
-        score += 25
-        reasons.append("同路段")
 
-    # --------------------------------------------------------
-    # 建物類型
-    # --------------------------------------------------------
-
-    if (
-        target["building_type"]
-        and sample["building_type"]
-        and target["building_type"] == sample["building_type"]
-    ):
-        score += 20
-        reasons.append("同建物類型")
-
-    # --------------------------------------------------------
-    # 坪數
-    # --------------------------------------------------------
-
-    a_score = area_score(
-        target["area"],
-        sample["area"]
-    )
-
-    if a_score >= 80:
-        score += 20
-        reasons.append("坪數高度接近")
-    elif a_score >= 60:
-        score += 12
-        reasons.append("坪數接近")
-    elif a_score >= 35:
-        score += 5
-        reasons.append("坪數部分接近")
-
-    # --------------------------------------------------------
-    # 樓層
-    # --------------------------------------------------------
-
-    f_score = floor_score(
-        target["floor"],
-        sample["floor"]
-    )
-
-    if f_score >= 80:
-        score += 10
-        reasons.append("樓層接近")
-    elif f_score >= 60:
-        score += 6
-        reasons.append("樓層部分接近")
-
-    # --------------------------------------------------------
-    # 樣本單價存在
-    # --------------------------------------------------------
-
-    if sample["unit_price"] is not None:
-        score += 5
-        reasons.append("具有效單價")
-
-    return score, reasons
-
-
-# ============================================================
-# 判斷比較層級
-# ============================================================
-
-def determine_level(
-    target: dict[str, Any],
-    sample: dict[str, Any],
-) -> int:
-
-    same_district = (
-        target["district"]
-        and sample["district"]
-        and target["district"] == sample["district"]
-    )
-
-    same_road = (
-        target["road"]
-        and sample["road"]
-        and target["road"] == sample["road"]
-    )
-
-    same_building = (
-        target["building_type"]
-        and sample["building_type"]
-        and target["building_type"] == sample["building_type"]
-    )
-
-    a_score = area_score(
-        target["area"],
-        sample["area"]
-    )
-
-    if same_district and same_road and same_building and a_score >= 80:
-        return 1
-
-    if same_district and same_road:
-        return 2
-
-    if same_district and a_score >= 60 and same_building:
-        return 3
-
-    if same_district and a_score >= 60:
-        return 4
-
-    if same_district:
-        return 5
-
-    return 6
-
-
-# ============================================================
-# 比較樣本搜尋
-# ============================================================
-
-def find_comparables(
-    target: dict[str, Any],
-    transactions: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-
-    candidates: list[dict[str, Any]] = []
-
-    for sample in transactions:
-
-        # 沒有單價的資料不能作為正式比較樣本
-        if sample["unit_price"] is None:
-            continue
-
-        # 完全不同行政區暫不採用
-        if (
-            target["district"]
-            and sample["district"]
-            and target["district"] != sample["district"]
-        ):
-            continue
-
-        score, reasons = calculate_quality(
-            target,
-            sample
+        return (
+            "中高",
+            "A/B/C 核心比較樣本充足，"
+            "可作為主要市場判讀依據。"
         )
 
-        level = determine_level(
-            target,
-            sample
+    # --------------------------------------------------------
+    # 中等
+    # --------------------------------------------------------
+
+    if core_abc >= 3:
+
+        return (
+            "中",
+            "已有至少3筆A/B/C核心樣本，"
+            "但樣本品質或數量仍有限。"
         )
 
-        candidate = {
-            **sample,
-            "quality_score": score,
-            "quality_reasons": reasons,
-            "comparison_level": level,
-        }
-
-        candidates.append(candidate)
-
-    # 先比較層級，再品質分數
-    candidates.sort(
-        key=lambda item: (
-            item["comparison_level"],
-            -item["quality_score"],
-        )
+    return (
+        "低",
+        "比較樣本品質不足。"
     )
 
-    return candidates[:MAX_SAMPLES]
-
 
 # ============================================================
-# 統計比較結果
+# 價格偏離
 # ============================================================
 
-def calculate_market_stats(
-    samples: list[dict[str, Any]]
+def calculate_price_position(
+    current_unit: float | None,
+    market_unit: float | None,
 ) -> dict[str, Any]:
 
-    prices = [
-        sample["unit_price"]
-        for sample in samples
-        if sample["unit_price"] is not None
-    ]
+    if (
+        current_unit is None
+        or market_unit is None
+        or market_unit <= 0
+    ):
 
-    if not prices:
         return {
-            "count": 0,
-            "average": None,
-            "median": None,
-            "q1": None,
-            "q3": None,
+            "gap_percent": None,
+            "position": "無法判斷",
+            "severity": "未知",
         }
 
-    prices = sorted(prices)
+    gap = (
+        current_unit / market_unit
+    ) - 1
 
-    count = len(prices)
-
-    average = sum(prices) / count
-
-    median = (
-        prices[count // 2]
-        if count % 2 == 1
-        else (
-            prices[count // 2 - 1]
-            + prices[count // 2]
-        ) / 2
+    gap_percent = round(
+        gap * 100,
+        2
     )
 
-    q1_index = max(0, math.floor((count - 1) * 0.25))
-    q3_index = min(count - 1, math.floor((count - 1) * 0.75))
+    # --------------------------------------------------------
+    # 價格偏高
+    # --------------------------------------------------------
+
+    if gap >= VERY_HIGH_PRICE_THRESHOLD:
+
+        return {
+            "gap_percent": gap_percent,
+            "position": "明顯偏高",
+            "severity": "高",
+        }
+
+    if gap >= HIGH_PRICE_THRESHOLD:
+
+        return {
+            "gap_percent": gap_percent,
+            "position": "偏高",
+            "severity": "中高",
+        }
+
+    # --------------------------------------------------------
+    # 價格偏低
+    # --------------------------------------------------------
+
+    if gap <= VERY_LOW_PRICE_THRESHOLD:
+
+        return {
+            "gap_percent": gap_percent,
+            "position": "明顯偏低",
+            "severity": "高",
+        }
+
+    if gap <= LOW_PRICE_THRESHOLD:
+
+        return {
+            "gap_percent": gap_percent,
+            "position": "偏低",
+            "severity": "中高",
+        }
+
+    # --------------------------------------------------------
+    # 合理區間
+    # --------------------------------------------------------
 
     return {
-        "count": count,
-        "average": round(average, 2),
-        "median": round(median, 2),
-        "q1": round(prices[q1_index], 2),
-        "q3": round(prices[q3_index], 2),
+        "gap_percent": gap_percent,
+        "position": "接近市場核心行情",
+        "severity": "低",
     }
 
 
 # ============================================================
-# 信心判斷
+# 市場價格區間
 # ============================================================
 
-def confidence_level(
-    samples: list[dict[str, Any]]
+def estimate_market_range(
+    market_unit: float | None,
+    confidence: str,
+) -> dict[str, Any]:
+
+    if market_unit is None:
+
+        return {
+            "low_unit": None,
+            "high_unit": None,
+            "range_available": False,
+        }
+
+    # --------------------------------------------------------
+    # 注意：
+    # 這裡不是重新估價。
+    #
+    # 只是建立「市場參考帶」。
+    #
+    # 真正正式估價仍由 V6.2 負責。
+    # --------------------------------------------------------
+
+    if confidence == "高":
+
+        low_factor = 0.96
+        high_factor = 1.04
+
+    elif confidence == "中高":
+
+        low_factor = 0.94
+        high_factor = 1.06
+
+    elif confidence == "中":
+
+        low_factor = 0.92
+        high_factor = 1.08
+
+    else:
+
+        # 樣本不足時不輸出正式區間
+        return {
+            "low_unit": None,
+            "high_unit": None,
+            "range_available": False,
+        }
+
+    return {
+        "low_unit": round(
+            market_unit * low_factor,
+            2
+        ),
+        "high_unit": round(
+            market_unit * high_factor,
+            2
+        ),
+        "range_available": True,
+    }
+
+
+# ============================================================
+# 房仲判讀
+# ============================================================
+
+def generate_agent_comment(
+    row: dict[str, Any],
+    stats: dict[str, Any],
+    quality: str,
+    quality_reason: str,
+    price_position: dict[str, Any],
 ) -> str:
 
-    count = len(samples)
+    comparable = stats["comparable_count"]
+    core = stats["core_abc_count"]
 
-    level1 = sum(
-        1
-        for sample in samples
-        if sample["comparison_level"] == 1
+    position = price_position["position"]
+
+    # --------------------------------------------------------
+    # 樣本不足
+    # --------------------------------------------------------
+
+    if core < MIN_CORE_SAMPLES:
+
+        return (
+            "目前核心比較樣本不足，"
+            "不建議直接將單一成交案例視為市場平均。"
+            "目前價格僅可作為初步市場參考，"
+            "建議補充更多同路段、相近坪數及相近建物型態的成交資料。"
+        )
+
+    # --------------------------------------------------------
+    # 明顯偏高
+    # --------------------------------------------------------
+
+    if position == "明顯偏高":
+
+        return (
+            f"目前開價明顯高於核心市場參考值。"
+            f"本次共有{comparable}筆比較樣本，"
+            f"其中A/B/C核心樣本{core}筆。"
+            "若屋況、樓層、景觀、裝潢或特殊條件沒有明顯優勢，"
+            "買方議價空間通常較大。"
+        )
+
+    # --------------------------------------------------------
+    # 偏高
+    # --------------------------------------------------------
+
+    if position == "偏高":
+
+        return (
+            "目前開價高於核心市場行情，"
+            "但仍可能透過屋況、樓層、採光、景觀、裝潢及車位等條件進行合理修正。"
+            "建議買方先以核心成交行情作為議價基準。"
+        )
+
+    # --------------------------------------------------------
+    # 偏低
+    # --------------------------------------------------------
+
+    if position == "明顯偏低":
+
+        return (
+            "目前開價明顯低於核心市場參考值。"
+            "建議進一步確認屋況、產權、樓層、採光、嫌惡設施、"
+            "車位及其他特殊交易因素，避免僅依單價判斷。"
+        )
+
+    # --------------------------------------------------------
+    # 接近市場
+    # --------------------------------------------------------
+
+    return (
+        "目前開價與核心市場行情接近。"
+        "若物件屋況、樓層、採光、景觀、裝潢及車位條件正常，"
+        "價格具有一定市場合理性。"
     )
-
-    level2 = sum(
-        1
-        for sample in samples
-        if sample["comparison_level"] == 2
-    )
-
-    if level1 >= 3:
-        return "高"
-
-    if count >= 5 and level2 >= 2:
-        return "中高"
-
-    if count >= 3:
-        return "中"
-
-    return "低"
 
 
 # ============================================================
-# 單一物件分析
+# 單筆分析
 # ============================================================
 
-def analyze_listing(
-    listing: dict[str, Any],
-    transactions: list[dict[str, Any]],
+def analyze_row(
+    row: dict[str, Any]
 ) -> dict[str, Any]:
 
-    samples = find_comparables(
-        listing,
-        transactions
+    stats = sample_statistics(row)
+
+    confidence_input = (
+        row.get("confidence")
+        or ""
     )
 
-    stats = calculate_market_stats(samples)
+    quality, quality_reason = evaluate_sample_quality(
+        stats,
+        confidence_input,
+    )
 
-    confidence = confidence_level(samples)
+    current_unit = safe_float(
+        row.get("current_unit_price")
+    )
 
-    if len(samples) < MIN_SAMPLES:
-        status = "樣本不足"
-    else:
-        status = "可進行市場比較"
+    market_unit = safe_float(
+        row.get("weighted_market_unit_price")
+    )
+
+    # 若沒有加權市場單價
+    # 使用成交中位單價作為參考
+    if market_unit is None:
+
+        market_unit = safe_float(
+            row.get(
+                "median_transaction_unit_price"
+            )
+        )
+
+    price_position = calculate_price_position(
+        current_unit,
+        market_unit,
+    )
+
+    market_range = estimate_market_range(
+        market_unit,
+        quality,
+    )
+
+    agent_comment = generate_agent_comment(
+        row,
+        stats,
+        quality,
+        quality_reason,
+        price_position,
+    )
 
     return {
-        "listing_id": listing["listing_id"],
-        "title": listing["title"],
-        "district": listing["district"],
-        "location": listing["location"],
-        "target_area": listing["area"],
-        "target_unit_price": listing["unit_price"],
-        "status": status,
-        "confidence": confidence,
-        "sample_count": len(samples),
-        "market_stats": stats,
-        "comparables": [
-            {
-                "comparison_level": sample["comparison_level"],
-                "quality_score": sample["quality_score"],
-                "quality_reasons": sample["quality_reasons"],
-                "district": sample["district"],
-                "location": sample["location"],
-                "area": sample["area"],
-                "unit_price": sample["unit_price"],
-                "floor": sample["floor"],
-                "building_type": sample["building_type"],
-                "raw": sample["raw"],
-            }
-            for sample in samples
-        ],
+
+        "listing_id":
+            row.get("listing_id", ""),
+
+        "district":
+            row.get("district", ""),
+
+        "location":
+            row.get("location", ""),
+
+        "title":
+            row.get("title", ""),
+
+        "current_price":
+            safe_float(
+                row.get("current_price")
+            ),
+
+        "current_unit_price":
+            current_unit,
+
+        "market_reference_unit_price":
+            market_unit,
+
+        "median_transaction_unit_price":
+            safe_float(
+                row.get(
+                    "median_transaction_unit_price"
+                )
+            ),
+
+        "weighted_market_unit_price":
+            safe_float(
+                row.get(
+                    "weighted_market_unit_price"
+                )
+            ),
+
+        # ----------------------------------------------------
+        # 樣本
+        # ----------------------------------------------------
+
+        "comparable_count":
+            stats["comparable_count"],
+
+        "core_comparable_count":
+            stats["core_comparable_count"],
+
+        "core_ab_count":
+            stats["core_ab_count"],
+
+        "core_abc_count":
+            stats["core_abc_count"],
+
+        "grade_a_count":
+            stats["grade_a_count"],
+
+        "grade_b_count":
+            stats["grade_b_count"],
+
+        "grade_c_count":
+            stats["grade_c_count"],
+
+        "grade_d_count":
+            stats["grade_d_count"],
+
+        "grade_e_count":
+            stats["grade_e_count"],
+
+        "extension_comparable_count":
+            stats["extension_comparable_count"],
+
+        "excluded_count":
+            stats["excluded_count"],
+
+        "core_sample_ratio":
+            stats["core_ratio"],
+
+        # ----------------------------------------------------
+        # 品質
+        # ----------------------------------------------------
+
+        "v62_price_grade":
+            row.get("price_grade", ""),
+
+        "v62_confidence":
+            confidence_input,
+
+        "v63_quality":
+            quality,
+
+        "v63_quality_reason":
+            quality_reason,
+
+        # ----------------------------------------------------
+        # 價格偏離
+        # ----------------------------------------------------
+
+        "price_gap_percent":
+            price_position["gap_percent"],
+
+        "price_position":
+            price_position["position"],
+
+        "price_severity":
+            price_position["severity"],
+
+        # ----------------------------------------------------
+        # 市場參考區間
+        # ----------------------------------------------------
+
+        "market_range_available":
+            market_range["range_available"],
+
+        "market_low_unit_price":
+            market_range["low_unit"],
+
+        "market_high_unit_price":
+            market_range["high_unit"],
+
+        # ----------------------------------------------------
+        # 房仲判讀
+        # ----------------------------------------------------
+
+        "agent_comment":
+            agent_comment,
+
+        "generated_at":
+            datetime.now().isoformat(
+                timespec="seconds"
+            ),
     }
 
 
 # ============================================================
-# 主程式
+# CSV 輸出
 # ============================================================
 
-def main() -> None:
+def write_csv(
+    rows: list[dict[str, Any]]
+) -> None:
 
-    print("=" * 60)
-    print("第46階段：V6.3 智慧比較樣本引擎")
-    print("=" * 60)
+    if not rows:
+        return
 
-    print()
-    print("讀取實價交易資料...")
-    
-    transaction_rows = read_csv(
-        TRANSACTIONS_FILE
+    fieldnames = list(
+        rows[0].keys()
     )
 
-    print(
-        f"實價原始資料：{len(transaction_rows)} 筆"
-    )
+    with OUTPUT_CSV.open(
+        "w",
+        encoding="utf-8-sig",
+        newline=""
+    ) as file:
 
-    transactions = [
-        normalize_transaction(row)
-        for row in transaction_rows
-    ]
-
-    print(
-        f"有效比較資料：{len(transactions)} 筆"
-    )
-
-    print()
-    print("讀取在售物件...")
-
-    listing_rows = read_csv(
-        LISTINGS_FILE
-    )
-
-    print(
-        f"在售物件：{len(listing_rows)} 筆"
-    )
-
-    listings = [
-        normalize_listing(row)
-        for row in listing_rows
-    ]
-
-    print()
-    print("開始 V6.3 智慧比較...")
-    print()
-
-    results = []
-
-    for listing in listings:
-
-        result = analyze_listing(
-            listing,
-            transactions
+        writer = csv.DictWriter(
+            file,
+            fieldnames=fieldnames
         )
 
-        results.append(result)
+        writer.writeheader()
 
-        print("-" * 60)
+        writer.writerows(rows)
 
-        print(
-            f"物件：{result['listing_id']}"
-        )
 
-        print(
-            f"標題：{result['title']}"
-        )
+# ============================================================
+# JSON 輸出
+# ============================================================
 
-        print(
-            f"行政區：{result['district']}"
-        )
-
-        print(
-            f"位置：{result['location']}"
-        )
-
-        print(
-            f"比較狀態：{result['status']}"
-        )
-
-        print(
-            f"信心度：{result['confidence']}"
-        )
-
-        print(
-            f"比較樣本：{result['sample_count']} 筆"
-        )
-
-        stats = result["market_stats"]
-
-        print(
-            f"市場平均：{stats['average']}"
-        )
-
-        print(
-            f"市場中位數：{stats['median']}"
-        )
-
-        for index, sample in enumerate(
-            result["comparables"],
-            start=1
-        ):
-
-            print(
-                f"  #{index} "
-                f"Level {sample['comparison_level']} "
-                f"| 品質 {sample['quality_score']} "
-                f"| {sample['unit_price']} 萬/坪"
-            )
-
-    # --------------------------------------------------------
-    # 輸出 JSON
-    # --------------------------------------------------------
+def write_json(
+    rows: list[dict[str, Any]]
+) -> None:
 
     output = {
+
         "version": "V6.3",
-        "stage": "第46階段",
-        "generated_at": datetime.now().isoformat(
-            timespec="seconds"
-        ),
-        "settings": {
-            "min_samples": MIN_SAMPLES,
-            "max_samples": MAX_SAMPLES,
-            "comparison_levels": [
-                "同社區/同大樓",
-                "同路段",
-                "同行政區+相近坪數+相近建物類型",
-                "同行政區+相近坪數",
-                "同行政區",
-            ],
-        },
-        "summary": {
-            "listing_count": len(results),
-            "sample_sufficient": sum(
-                1
-                for result in results
-                if result["sample_count"] >= MIN_SAMPLES
+
+        "stage":
+            "第46-4階段",
+
+        "generated_at":
+            datetime.now().isoformat(
+                timespec="seconds"
             ),
-            "sample_insufficient": sum(
-                1
-                for result in results
-                if result["sample_count"] < MIN_SAMPLES
-            ),
-        },
-        "results": results,
+
+        "purpose":
+            "V6.2價格決策結果之智慧分析與房仲判讀",
+
+        "important_rule":
+            "V6.3不重新計算V6.2正式估價",
+
+        "results":
+            rows,
+
     }
 
-    OUTPUT_FILE.parent.mkdir(
-        parents=True,
-        exist_ok=True
-    )
-
-    with OUTPUT_FILE.open(
+    with OUTPUT_JSON.open(
         "w",
         encoding="utf-8"
     ) as file:
@@ -879,21 +756,131 @@ def main() -> None:
             indent=2
         )
 
+
+# ============================================================
+# 主程式
+# ============================================================
+
+def main() -> None:
+
+    print("=" * 70)
+    print("V6.3 智慧比較樣本分析層")
+    print("=" * 70)
+
     print()
-    print("=" * 60)
-    print("V6.3 比較引擎完成")
-    print("=" * 60)
+    print(
+        f"讀取：{INPUT_FILE}"
+    )
+
+    rows = read_csv(
+        INPUT_FILE
+    )
+
+    if not rows:
+
+        print(
+            "❌ 沒有讀到 pricing_decisions.csv"
+        )
+
+        return
 
     print(
-        f"輸出：{OUTPUT_FILE}"
+        f"讀取房源：{len(rows)} 筆"
+    )
+
+    print()
+
+    results = []
+
+    for row in rows:
+
+        result = analyze_row(
+            row
+        )
+
+        results.append(
+            result
+        )
+
+        print("-" * 70)
+
+        print(
+            f"物件：{result['listing_id']}"
+        )
+
+        print(
+            f"位置：{result['location']}"
+        )
+
+        print(
+            f"目前開價："
+            f"{result['current_unit_price']} 萬/坪"
+        )
+
+        print(
+            f"市場參考："
+            f"{result['market_reference_unit_price']} 萬/坪"
+        )
+
+        print(
+            f"比較樣本："
+            f"{result['comparable_count']} 筆"
+        )
+
+        print(
+            f"A/B/C核心樣本："
+            f"{result['core_abc_count']} 筆"
+        )
+
+        print(
+            f"樣本品質："
+            f"{result['v63_quality']}"
+        )
+
+        print(
+            f"V6.2信心："
+            f"{result['v62_confidence']}"
+        )
+
+        print(
+            f"價格偏離："
+            f"{result['price_gap_percent']}%"
+        )
+
+        print(
+            f"市場定位："
+            f"{result['price_position']}"
+        )
+
+        print(
+            f"房仲判讀："
+            f"{result['agent_comment']}"
+        )
+
+    write_csv(
+        results
+    )
+
+    write_json(
+        results
+    )
+
+    print()
+    print("=" * 70)
+    print("V6.3 分析完成")
+    print("=" * 70)
+
+    print(
+        f"CSV：{OUTPUT_CSV}"
     )
 
     print(
-        f"分析物件：{len(results)} 筆"
+        f"JSON：{OUTPUT_JSON}"
     )
 
+    print()
     print(
-        "目前 V6.2 未被修改。"
+        "注意：V6.3 沒有修改 V6.2 正式估價結果。"
     )
 
 
