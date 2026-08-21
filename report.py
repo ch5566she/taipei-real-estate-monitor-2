@@ -4044,6 +4044,17 @@ def create_html(report):
                 f"{change:+.2f}%"
             )
 
+        trend_window_changes = {}
+        for _window in (3, 6, 12):
+            _change = (
+                data.get("trend_windows", {})
+                .get(str(_window), {})
+                .get("change")
+            )
+            trend_window_changes[_window] = (
+                "—" if _change is None else f"{_change:+.2f}%"
+            )
+
         cards += f"""
         <section class="district">
 
@@ -4129,15 +4140,15 @@ def create_html(report):
                 <div class="mini-period-grid">
                     <div class="mini-period">
                         <span>近3月</span>
-                        <strong>{(data.get("trend_windows", {}).get("3", {}).get("change") is None and "—") or f"{data.get("trend_windows", {}).get("3", {}).get("change"):+.2f}%"}</strong>
+                        <strong>{trend_window_changes[3]}</strong>
                     </div>
                     <div class="mini-period">
                         <span>近6月</span>
-                        <strong>{(data.get("trend_windows", {}).get("6", {}).get("change") is None and "—") or f"{data.get("trend_windows", {}).get("6", {}).get("change"):+.2f}%"}</strong>
+                        <strong>{trend_window_changes[6]}</strong>
                     </div>
                     <div class="mini-period">
                         <span>近12月</span>
-                        <strong>{(data.get("trend_windows", {}).get("12", {}).get("change") is None and "—") or f"{data.get("trend_windows", {}).get("12", {}).get("change"):+.2f}%"}</strong>
+                        <strong>{trend_window_changes[12]}</strong>
                     </div>
                 </div>
             </div>
