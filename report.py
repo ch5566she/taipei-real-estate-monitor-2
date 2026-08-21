@@ -3895,6 +3895,18 @@ def create_html(report):
                 f"{change:+.2f}%"
             )
 
+        # 3／6／12 個有資料月份的變化文字
+        # 先在 f-string 外計算，避免 Python 3.11 對巢狀 f-string／引號解析問題。
+        trend_windows = data.get("trend_windows", {})
+
+        trend3_change = trend_windows.get("3", {}).get("change")
+        trend6_change = trend_windows.get("6", {}).get("change")
+        trend12_change = trend_windows.get("12", {}).get("change")
+
+        trend3_text = "—" if trend3_change is None else f"{trend3_change:+.2f}%"
+        trend6_text = "—" if trend6_change is None else f"{trend6_change:+.2f}%"
+        trend12_text = "—" if trend12_change is None else f"{trend12_change:+.2f}%"
+
         cards += f"""
         <section class="district">
 
@@ -3980,15 +3992,15 @@ def create_html(report):
                 <div class="mini-period-grid">
                     <div class="mini-period">
                         <span>近3月</span>
-                        <strong>{(data.get("trend_windows", {}).get("3", {}).get("change") is None and "—") or f"{data.get("trend_windows", {}).get("3", {}).get("change"):+.2f}%"}</strong>
+                        <strong>{trend3_text}</strong>
                     </div>
                     <div class="mini-period">
                         <span>近6月</span>
-                        <strong>{(data.get("trend_windows", {}).get("6", {}).get("change") is None and "—") or f"{data.get("trend_windows", {}).get("6", {}).get("change"):+.2f}%"}</strong>
+                        <strong>{trend6_text}</strong>
                     </div>
                     <div class="mini-period">
                         <span>近12月</span>
-                        <strong>{(data.get("trend_windows", {}).get("12", {}).get("change") is None and "—") or f"{data.get("trend_windows", {}).get("12", {}).get("change"):+.2f}%"}</strong>
+                        <strong>{trend12_text}</strong>
                     </div>
                 </div>
             </div>
