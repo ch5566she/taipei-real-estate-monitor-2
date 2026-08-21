@@ -1,0 +1,172 @@
+name: 每日士林北投房市監控
+
+on:
+  schedule:
+    # GitHub Actions 使用 UTC
+    # 01:15 UTC = 台灣時間 09:15
+    - cron: "15 1 * * *"
+
+  workflow_dispatch:
+
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+
+concurrency:
+  group: taipei-real-estate-daily
+  cancel-in-progress: false
+
+
+jobs:
+
+  daily-monitor:
+
+    name: 每日房市完整 Pipeline
+
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+
+    steps:
+
+      # ======================================================
+      # 01 Checkout
+      # ======================================================
+
+      - name: "[01] Checkout Repository"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+
+      # ======================================================
+      # 02 Python
+      # ======================================================
+
+      - name: "[02] Setup Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+
+      # ======================================================
+      # 03 Python 檢查
+      # ======================================================
+
+      - name: "[03] Check Python"
+        run: |
+          python --version
+          python -c "import sys; print(sys.executable)"
+
+
+      # ======================================================
+      # 04 執行每日 Pipeline
+      # ======================================================
+
+      - name: "[04] Run Daily Pipeline"
+        run: |
+          python main.py
+
+
+      # ======================================================
+      # 05 顯示結果
+      # ======================================================
+
+      - name: "[05] Verify Generated Files"
+        run: |
+
+          echo "=========================================="
+          echo "DATA"
+          echo "=========================================="
+
+          ls -lah data/ || true
+
+
+          echo ""
+          echo "=========================================="
+          echo "HISTORY"
+          echo "=========================================="
+
+          ls -lah history/ | tail -n 15 || true
+
+
+          echo ""
+          echo "=========================================="
+          echo "REPORTS"
+          echo "=========================================="
+
+          ls -lah reports/ || true
+
+
+      # ======================================================
+      # 06 Git 狀態
+      # ======================================================
+
+      - name: "[06] Git Status"
+        run: |
+          git status --short
+
+
+      # ======================================================
+      # 07 Commit 每日資料
+      # ======================================================
+
+      - name: "[07] Commit Daily Data"
+        run: |
+
+          git config user.name \
+            "github-actions[bot]"
+
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+
+          git add \
+            data/ \
+            history/ \
+            reports/
+
+
+          if git diff --cached --quiet; then
+
+            echo "沒有新的資料變更。"
+
+          else
+
+            git commit \
+              -m "每日房市監控 $(date -u '+%Y-%m-%d')"
+
+            git push
+
+          fi
+
+
+      # ======================================================
+      # 08 GitHub Pages
+      # ======================================================
+
+      - name: "[08] Configure GitHub Pages"
+        uses: actions/configure-pages@v5
+
+
+      # ======================================================
+      # 09 Upload Pages Artifact
+      # ======================================================
+
+      - name: "[09] Upload GitHub Pages Artifact"
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: "."
+
+
+      # ======================================================
+      # 10 Deploy
+      # ======================================================
+
+      - name: "[10] Deploy GitHub Pages"
+        id: deployment
+        uses: actions/deploy-pages@v4
