@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-22 15:50:50",
+  "generated_at": "2026-08-22 17:03:51",
   "source_file": "data/incoming_listings.csv",
   "output_file": "data/raw_listings.csv",
   "total_records": 10,
