@@ -33,6 +33,7 @@ from __future__ import annotations
 import csv
 import os
 import platform
+import shutil
 import subprocess
 import sys
 import time
@@ -259,6 +260,122 @@ def prepare_directories():
             exist_ok=True,
         )
         print(f"✓ {directory.relative_to(BASE_DIR)}/")
+
+
+
+# ============================================================
+# STEP 02 前置：房源資料來源 Adapter V54.1
+# ============================================================
+
+def run_listing_source_adapter():
+    """
+    執行房源來源 Adapter，並以「暫存替換」方式讓既有
+    listing_importer.py 使用驗證後資料。
+
+    原始 data/incoming_listings.csv 會先備份；
+    importer 完成後一定嘗試還原原始檔。
+    """
+    set_stage("[STEP 02] 房源資料來源 Adapter V54.1")
+    print_header("[STEP 02] 房源資料來源 Adapter V54.1")
+
+    source_path = DATA_DIR / "incoming_listings.csv"
+    validated_path = DATA_DIR / "incoming_listings_validated.csv"
+    backup_path = DATA_DIR / ".incoming_listings_original.csv"
+
+    required_columns = [
+        "listing_id",
+        "district",
+        "total_price",
+        "building_area",
+        "unit_price",
+        "data_quality_grade",
+        "can_formal_pricing",
+    ]
+
+    if not source_path.exists():
+        raise FileNotFoundError(
+            f"找不到房源原始資料：{source_path}"
+        )
+
+    print_file_diagnostic(source_path, "原始房源資料")
+
+    run_script(
+        "listing_source_adapter_v54_1.py",
+        "房源資料標準化＋品質驗證；不猜測缺失資料",
+    )
+
+    if not validate_csv_basic(
+        validated_path,
+        required_columns=required_columns,
+        min_rows=1,
+        label="房源 Adapter 驗證資料",
+    ):
+        raise RuntimeError(
+            "房源 Adapter 輸出驗證失敗，停止後續房源 Pipeline。"
+        )
+
+    # 顯示品質摘要
+    try:
+        import json as _json
+
+        quality_path = DATA_DIR / "listing_source_quality.json"
+        if quality_path.exists():
+            quality = _json.loads(
+                quality_path.read_text(encoding="utf-8")
+            )
+            print()
+            print("【房源 Adapter 品質摘要】")
+            print(f"房源總數：{quality.get('total_listings', 0)}")
+            print(
+                "品質分級："
+                f"{quality.get('quality_grade_counts', {})}"
+            )
+            print(
+                "核心資料完整："
+                f"{quality.get('core_complete', 0)} 筆"
+            )
+            print(
+                "正式價格候選："
+                f"{quality.get('formal_pricing_candidates', 0)} 筆"
+            )
+    except Exception as exc:
+        print(
+            f"{YELLOW}⚠️ 無法讀取 Adapter 品質摘要："
+            f"{type(exc).__name__}: {exc}{RESET}"
+        )
+
+    # 暫存原始檔，讓既有 importer 不需要修改。
+    shutil.copy2(source_path, backup_path)
+
+    try:
+        shutil.copy2(validated_path, source_path)
+        print(
+            f"{GREEN}✓ 已將驗證資料暫時提供給 listing_importer.py："
+            f"{source_path.relative_to(BASE_DIR)}{RESET}"
+        )
+        return source_path, backup_path
+    except Exception:
+        if backup_path.exists():
+            shutil.copy2(backup_path, source_path)
+        raise
+
+
+def restore_original_listing_source(source_path, backup_path):
+    """還原 Adapter 執行前的原始 incoming_listings.csv。"""
+    try:
+        if backup_path.exists():
+            shutil.copy2(backup_path, source_path)
+            backup_path.unlink()
+            print(
+                f"{GREEN}✓ 已還原原始房源資料："
+                f"{source_path.relative_to(BASE_DIR)}{RESET}"
+            )
+    except Exception as exc:
+        print(
+            f"{RED}❌ 無法還原原始房源資料："
+            f"{type(exc).__name__}: {exc}{RESET}"
+        )
+        raise
 
 
 # ============================================================
@@ -516,6 +633,8 @@ def verify_required_files():
         DATA_DIR / "pricing_decisions.csv",
         DATA_DIR / "comparison_analysis_v6_3.csv",
         DATA_DIR / "comparison_analysis_v6_3.json",
+        DATA_DIR / "incoming_listings_validated.csv",
+        DATA_DIR / "listing_source_quality.json",
     ]
 
     all_ok = True
@@ -605,7 +724,7 @@ def main():
     )
 
     print(
-        "第47-1階段：每日自動化 Pipeline"
+        "第54-2階段：Adapter 安全接線＋每日自動化 Pipeline"
     )
 
     print_separator("=")
@@ -654,19 +773,27 @@ def main():
         # STEP 02
         # ====================================================
 
-        set_stage("[STEP 02] 591 在售房源資料匯入")
-        print_header(
-            "[STEP 02] 591 在售房源資料匯入"
-        )
+        source_path, backup_path = run_listing_source_adapter()
 
-        run_script(
-            "listing_importer.py",
-            "591 在售房源資料匯入",
-        )
+        try:
+            set_stage("[STEP 02] 591 在售房源資料匯入")
+            print_header(
+                "[STEP 02] 591 在售房源資料匯入"
+            )
 
-        print(
-            f"{GREEN}✓ 591 在售房源資料匯入完成{RESET}"
-        )
+            run_script(
+                "listing_importer.py",
+                "使用 Adapter 驗證後的房源資料進行標準化匯入",
+            )
+
+            print(
+                f"{GREEN}✓ 591 在售房源資料匯入完成{RESET}"
+            )
+        finally:
+            restore_original_listing_source(
+                source_path,
+                backup_path,
+            )
 
         # ====================================================
         # STEP 03
