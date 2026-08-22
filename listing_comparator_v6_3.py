@@ -45,6 +45,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 
 INPUT_FILE = DATA_DIR / "pricing_decisions.csv"
+CURRENT_LISTINGS_FILE = DATA_DIR / "current_listings.csv"
 
 OUTPUT_JSON = DATA_DIR / "comparison_analysis_v6_3.json"
 OUTPUT_CSV = DATA_DIR / "comparison_analysis_v6_3.csv"
@@ -492,11 +493,209 @@ def generate_agent_comment(
 
 
 # ============================================================
+# 第51階段：房源資料品質 A-F
+# ============================================================
+
+QUALITY_CORE_FIELDS = [
+    "listing_id",
+    "total_price",
+    "building_area",
+    "current_unit_price",
+]
+
+QUALITY_SUPPLEMENT_FIELDS = [
+    "location",
+    "floor",
+    "total_floors",
+    "rooms",
+    "age",
+    "building_type",
+    "url",
+]
+
+def first_value(row: dict[str, Any], names: list[str]) -> Any:
+    for name in names:
+        value = row.get(name)
+        if value is not None and str(value).strip() != "":
+            return value
+    return None
+
+
+def normalize_listing_id(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def evaluate_listing_data_quality(
+    listing: dict[str, Any],
+    pricing: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    第51階段資料品質分級。
+
+    注意：
+    - 這是「房源資料完整度」分級，不是 V6.2 的成交樣本品質。
+    - 不重新估價、不補造缺失資料。
+    - V6.2 的 formal_valuation_eligible 原值直接保留。
+    """
+    pricing = pricing or {}
+
+    merged = dict(listing)
+    for key, value in pricing.items():
+        if value not in (None, ""):
+            merged[key] = value
+
+    listing_id = normalize_listing_id(
+        first_value(merged, ["listing_id", "591_id", "物件編號"])
+    )
+
+    total_price = safe_float(
+        first_value(merged, ["total_price", "current_price", "price", "總價", "售價"])
+    )
+
+    building_area = safe_float(
+        first_value(merged, ["building_area", "area", "坪數", "建物坪數", "建坪"])
+    )
+
+    current_unit = safe_float(
+        first_value(merged, ["current_unit_price", "unit_price", "單價", "每坪單價"])
+    )
+
+    missing_core = []
+
+    if not listing_id:
+        missing_core.append("listing_id")
+    if total_price is None:
+        missing_core.append("total_price")
+    if building_area is None:
+        missing_core.append("building_area")
+    if current_unit is None:
+        missing_core.append("current_unit_price")
+
+    missing_supplement = []
+
+    alias_map = {
+        "location": ["location", "address", "addr", "地址", "路段"],
+        "floor": ["floor", "樓層"],
+        "total_floors": ["total_floors", "total_floor", "總樓層"],
+        "rooms": ["rooms", "房數", "房"],
+        "age": ["age", "屋齡"],
+        "building_type": ["building_type", "建物型態", "建物類型"],
+        "url": ["url", "591_url", "網址"],
+    }
+
+    for field, aliases in alias_map.items():
+        if not clean_value(first_value(merged, aliases)):
+            missing_supplement.append(field)
+
+    supplement_complete = len(QUALITY_SUPPLEMENT_FIELDS) - len(missing_supplement)
+    core_complete = len(missing_core) == 0
+
+    # A-F 是「房源資料完整度」，與 V6.3 樣本品質低/中/高分開。
+    if not listing_id and total_price is None:
+        grade = "F"
+        reason = "缺少物件編號與總價，無法建立可靠房源紀錄。"
+    elif total_price is None:
+        grade = "E"
+        reason = "缺少總價，無法進行價格層級分析。"
+    elif building_area is None:
+        grade = "D"
+        reason = "有總價但缺少建物坪數，無法建立可靠的每坪價格基礎。"
+    elif current_unit is None:
+        grade = "D"
+        reason = "已有總價與坪數，但目前沒有可用單價。"
+    elif supplement_complete >= 6:
+        grade = "A"
+        reason = "價格核心資料完整，且大部分房源結構欄位完整。"
+    elif supplement_complete >= 4:
+        grade = "B"
+        reason = "價格核心資料完整，並有足夠補充欄位支援房仲實戰判讀。"
+    else:
+        grade = "C"
+        reason = "價格核心資料完整，但地址、樓層、屋齡等補充欄位仍有缺漏。"
+
+    formal = pricing.get("formal_valuation_eligible")
+    if str(formal).strip().lower() in {"true", "1", "yes", "y"}:
+        formal_status = "是"
+    elif pricing:
+        formal_status = "否"
+    else:
+        formal_status = "否"
+
+    return {
+        "data_quality_grade": grade,
+        "data_quality_reason": reason,
+        "data_quality_core_complete": core_complete,
+        "data_quality_missing_core_fields": ",".join(missing_core),
+        "data_quality_missing_fields": ",".join(
+            missing_core + missing_supplement
+        ),
+        "data_quality_supplement_complete": supplement_complete,
+        "data_quality_supplement_total": len(QUALITY_SUPPLEMENT_FIELDS),
+        "formal_valuation_eligible": formal_status,
+        "formal_valuation_reason": (
+            pricing.get("formal_valuation_reason", "")
+            if pricing
+            else "尚未進入 V6.2 正式估價流程，或 V6.2 沒有產生此物件的決策資料。"
+        ),
+    }
+
+
+def clean_value(value: Any) -> str:
+    return str(value).strip() if value is not None else ""
+
+
+def empty_v63_result(listing: dict[str, Any]) -> dict[str, Any]:
+    """沒有 V6.2 決策時，建立不帶價格推估的安全結果。"""
+    quality = evaluate_listing_data_quality(listing, None)
+
+    return {
+        "listing_id": listing.get("listing_id", ""),
+        "district": listing.get("district", ""),
+        "location": listing.get("location", ""),
+        "title": listing.get("title", ""),
+        "current_price": safe_float(listing.get("total_price")),
+        "current_unit_price": safe_float(listing.get("unit_price")),
+        "market_reference_unit_price": None,
+        "median_transaction_unit_price": None,
+        "weighted_market_unit_price": None,
+        "comparable_count": 0,
+        "core_comparable_count": 0,
+        "core_ab_count": 0,
+        "core_abc_count": 0,
+        "grade_a_count": 0,
+        "grade_b_count": 0,
+        "grade_c_count": 0,
+        "grade_d_count": 0,
+        "grade_e_count": 0,
+        "extension_comparable_count": 0,
+        "excluded_count": 0,
+        "core_sample_ratio": 0,
+        "v62_price_grade": "",
+        "v62_confidence": "",
+        "v63_quality": "低",
+        "v63_quality_reason": "尚未取得 V6.2 比較決策資料，無法進行成交樣本判讀。",
+        "price_gap_percent": None,
+        "price_position": "無法判斷",
+        "price_severity": "未知",
+        "market_range_available": False,
+        "market_low_unit_price": None,
+        "market_high_unit_price": None,
+        "agent_comment": (
+            "目前沒有 V6.2 決策資料，因此不做市場價格推估。"
+            "先補齊坪數、樓層、屋齡與位置等資料，再進行正式比價。"
+        ),
+        **quality,
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+    }
+
+
+# ============================================================
 # 單筆分析
 # ============================================================
 
 def analyze_row(
-    row: dict[str, Any]
+    row: dict[str, Any],
+    listing_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
 
     stats = sample_statistics(row)
@@ -675,6 +874,14 @@ def analyze_row(
         "agent_comment":
             agent_comment,
 
+        # ----------------------------------------------------
+        # 第51階段：房源資料品質 A-F
+        # ----------------------------------------------------
+        **evaluate_listing_data_quality(
+            listing_context or row,
+            row,
+        ),
+
         "generated_at":
             datetime.now().isoformat(
                 timespec="seconds"
@@ -723,10 +930,10 @@ def write_json(
 
     output = {
 
-        "version": "V6.3",
+        "version": "V6.3.1",
 
         "stage":
-            "第46-4階段",
+            "第51階段｜房源資料品質 A-F 分級",
 
         "generated_at":
             datetime.now().isoformat(
@@ -734,7 +941,7 @@ def write_json(
             ),
 
         "purpose":
-            "V6.2價格決策結果之智慧分析與房仲判讀",
+            "V6.2價格決策結果之智慧分析、房源資料品質 A-F 分級與房仲判讀",
 
         "important_rule":
             "V6.3不重新計算V6.2正式估價",
@@ -762,126 +969,105 @@ def write_json(
 # ============================================================
 
 def main() -> None:
-
     print("=" * 70)
-    print("V6.3 智慧比較樣本分析層")
+    print("V6.3 智慧比較樣本分析層｜第51階段")
     print("=" * 70)
 
     print()
-    print(
-        f"讀取：{INPUT_FILE}"
-    )
+    print(f"V6.2決策輸入：{INPUT_FILE}")
+    print(f"在售房源輸入：{CURRENT_LISTINGS_FILE}")
 
-    rows = read_csv(
-        INPUT_FILE
-    )
+    pricing_rows = read_csv(INPUT_FILE)
+    listing_rows = read_csv(CURRENT_LISTINGS_FILE)
 
-    if not rows:
-
-        print(
-            "❌ 沒有讀到 pricing_decisions.csv"
-        )
-
+    if not pricing_rows and not listing_rows:
+        print("❌ pricing_decisions.csv 與 current_listings.csv 都沒有資料")
         return
 
-    print(
-        f"讀取房源：{len(rows)} 筆"
-    )
+    pricing_map = {
+        normalize_listing_id(row.get("listing_id")): row
+        for row in pricing_rows
+        if normalize_listing_id(row.get("listing_id"))
+    }
 
-    print()
+    # 優先以 current_listings.csv 作為「全量房源母表」，
+    # 再把 V6.2 決策依 listing_id 合併進來。
+    if listing_rows:
+        source_rows = listing_rows
+    else:
+        source_rows = pricing_rows
+
+    print(f"全量在售房源：{len(source_rows)} 筆")
+    print(f"V6.2 已產生決策：{len(pricing_rows)} 筆")
 
     results = []
 
-    for row in rows:
+    for listing in source_rows:
+        listing_id = normalize_listing_id(listing.get("listing_id"))
+        pricing = pricing_map.get(listing_id)
 
-        result = analyze_row(
-            row
-        )
+        if pricing:
+            result = analyze_row(
+                pricing,
+                listing_context=listing,
+            )
+        else:
+            result = empty_v63_result(listing)
 
-        results.append(
-            result
-        )
+        results.append(result)
 
         print("-" * 70)
+        print(f"物件：{result['listing_id']}")
+        print(f"資料品質：{result['data_quality_grade']}級")
+        print(f"缺少核心欄位：{result['data_quality_missing_core_fields'] or '無'}")
+        print(f"缺少欄位：{result['data_quality_missing_fields'] or '無'}")
+        print(f"正式估價：{result['formal_valuation_eligible']}")
+        print(f"比較樣本：{result['comparable_count']} 筆")
+        print(f"A/B/C核心樣本：{result['core_abc_count']} 筆")
+        print(f"V6.3樣本品質：{result['v63_quality']}")
+        print(f"市場定位：{result['price_position']}")
 
-        print(
-            f"物件：{result['listing_id']}"
+    # --------------------------------------------------------
+    # 第51階段統計摘要
+    # --------------------------------------------------------
+    grade_counts = {
+        grade: sum(
+            1 for item in results
+            if item.get("data_quality_grade") == grade
         )
+        for grade in ["A", "B", "C", "D", "E", "F"]
+    }
 
-        print(
-            f"位置：{result['location']}"
-        )
-
-        print(
-            f"目前開價："
-            f"{result['current_unit_price']} 萬/坪"
-        )
-
-        print(
-            f"市場參考："
-            f"{result['market_reference_unit_price']} 萬/坪"
-        )
-
-        print(
-            f"比較樣本："
-            f"{result['comparable_count']} 筆"
-        )
-
-        print(
-            f"A/B/C核心樣本："
-            f"{result['core_abc_count']} 筆"
-        )
-
-        print(
-            f"樣本品質："
-            f"{result['v63_quality']}"
-        )
-
-        print(
-            f"V6.2信心："
-            f"{result['v62_confidence']}"
-        )
-
-        print(
-            f"價格偏離："
-            f"{result['price_gap_percent']}%"
-        )
-
-        print(
-            f"市場定位："
-            f"{result['price_position']}"
-        )
-
-        print(
-            f"房仲判讀："
-            f"{result['agent_comment']}"
-        )
-
-    write_csv(
-        results
-    )
-
-    write_json(
-        results
+    formal_count = sum(
+        1 for item in results
+        if item.get("formal_valuation_eligible") == "是"
     )
 
     print()
     print("=" * 70)
-    print("V6.3 分析完成")
+    print("第51階段｜房源資料品質摘要")
+    print("=" * 70)
+    print(f"全量房源：{len(results)} 筆")
+    print(
+        " | ".join(
+            f"{grade}級：{grade_counts[grade]} 筆"
+            for grade in ["A", "B", "C", "D", "E", "F"]
+        )
+    )
+    print(f"V6.2正式估價資格：{formal_count} 筆")
     print("=" * 70)
 
-    print(
-        f"CSV：{OUTPUT_CSV}"
-    )
-
-    print(
-        f"JSON：{OUTPUT_JSON}"
-    )
+    write_csv(results)
+    write_json(results)
 
     print()
-    print(
-        "注意：V6.3 沒有修改 V6.2 正式估價結果。"
-    )
+    print("=" * 70)
+    print("V6.3 第51階段分析完成")
+    print("=" * 70)
+    print(f"CSV：{OUTPUT_CSV}")
+    print(f"JSON：{OUTPUT_JSON}")
+    print()
+    print("重要：V6.3 沒有重新計算或修改 V6.2 正式估價結果。")
 
 
 if __name__ == "__main__":
