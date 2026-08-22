@@ -1,0 +1,20 @@
+{
+  "version": "54.3",
+  "processed_at": "2026-08-22 19:08:40",
+  "input_file": "data/source_inbox/test_591_listings.csv.csv",
+  "input_rows": 10,
+  "output_rows": 10,
+  "excluded_non_target_district_rows": 0,
+  "duplicate_rows_detected": 0,
+  "calculated_missing_unit_price": 0,
+  "source_counts": {
+    "591": 10
+  },
+  "district_counts": {
+    "士林區": 5,
+    "北投區": 5
+  },
+  "collected_at_known": 0,
+  "collected_at_unknown": 10,
+  "rule": "只整理合法取得的 CSV；不爬取網站、不猜測缺失資料、不將 processed_at 冒充 collected_at。"
+}
