@@ -382,6 +382,12 @@ def normalize_listing(row, index):
     if not source:
         source = "合法匯入資料"
 
+    # V55.8: preserve fetch/data quality state from upstream 591 pipeline.
+    fetch_status = find_column(row, ["fetch_status", "抓取狀態"])
+    data_status = find_column(row, ["data_status", "資料狀態"])
+    parser_quality = find_column(row, ["parser_quality", "解析品質"])
+    parser_warnings = find_column(row, ["parser_warnings", "解析警告"])
+
     # ----------------------------------------
     # 台灣時間
     # ----------------------------------------
@@ -445,6 +451,19 @@ def normalize_listing(row, index):
         "source": source,
 
         "collected_at": collected_at,
+
+        # Preserve upstream V54.1/V6.2 quality fields.
+        "data_quality_grade": find_column(row, ["data_quality_grade", "資料品質等級"]),
+        "missing_fields": find_column(row, ["missing_fields", "缺少欄位"]),
+        "core_missing_fields": find_column(row, ["core_missing_fields", "核心缺失欄位"]),
+        "can_formal_pricing": find_column(row, ["can_formal_pricing", "可正式計價"]),
+        "quality_reason": find_column(row, ["quality_reason", "品質原因"]),
+
+        # V55.8 state fields
+        "fetch_status": fetch_status,
+        "data_status": data_status,
+        "parser_quality": parser_quality,
+        "parser_warnings": parser_warnings,
     }
 
 
@@ -524,6 +543,57 @@ def remove_duplicates(records):
 
 
 # ============================================================
+# V55.8：安全合併上一版資料
+# ============================================================
+
+def merge_with_previous(records):
+    """
+    FETCH_BLOCKED / STALE：
+    - 若上一版存在同 listing_id，保留舊的詳細欄位。
+    - 只更新來源身份與狀態欄位。
+    - 若沒有上一版，不造假，詳細欄位保持本次值（通常為空白）。
+    """
+    if not os.path.exists(OUTPUT_FILE):
+        return records
+
+    try:
+        with open(OUTPUT_FILE, "r", encoding="utf-8-sig", newline="") as fp:
+            previous_rows = list(csv.DictReader(fp))
+    except Exception:
+        return records
+
+    previous = {
+        clean_text(r.get("listing_id")): r
+        for r in previous_rows
+        if clean_text(r.get("listing_id"))
+    }
+
+    detail_fields = [
+        "total_price", "building_area", "unit_price",
+        "floor", "total_floor", "rooms", "age", "building_type",
+        "location"
+    ]
+
+    for record in records:
+        lid = clean_text(record.get("listing_id"))
+        if not lid:
+            continue
+
+        status = clean_text(record.get("fetch_status")).upper()
+        data_status = clean_text(record.get("data_status")).upper()
+
+        if status == "FETCH_BLOCKED" or data_status == "STALE":
+            old = previous.get(lid)
+            if old:
+                for field in detail_fields:
+                    old_value = clean_text(old.get(field))
+                    if old_value:
+                        record[field] = old_value
+
+    return records
+
+
+# ============================================================
 # 保存 CSV
 # ============================================================
 
@@ -550,6 +620,15 @@ def save_output(records):
         "url",
         "source",
         "collected_at",
+        "data_quality_grade",
+        "missing_fields",
+        "core_missing_fields",
+        "can_formal_pricing",
+        "quality_reason",
+        "fetch_status",
+        "data_status",
+        "parser_quality",
+        "parser_warnings",
     ]
 
     with open(
@@ -698,7 +777,7 @@ def build_quality_report(records):
         overall_status = "SOURCE_TIME_UNKNOWN"
     elif stale_count > 0:
         overall_status = "STALE"
-    elif complete_count == total:
+    elif pricing_complete_count == total:
         overall_status = "FRESH_COMPLETE"
     else:
         overall_status = "FRESH_WITH_MISSING_FIELDS"
@@ -834,6 +913,9 @@ def main():
     print(f"士林區：{shilin_count} 筆")
     print(f"北投區：{beitou_count} 筆")
     print(f"合計：{len(records)} 筆")
+
+    # V55.8: protect existing detail values when upstream fetch is blocked.
+    records = merge_with_previous(records)
 
     save_output(records)
     save_quality_report(records)
