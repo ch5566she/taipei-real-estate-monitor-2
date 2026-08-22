@@ -1,7 +1,7 @@
 {
   "version": "V6.3",
   "stage": "第46-4階段",
-  "generated_at": "2026-08-22T03:27:25",
+  "generated_at": "2026-08-22T05:55:12",
   "purpose": "V6.2價格決策結果之智慧分析與房仲判讀",
   "important_rule": "V6.3不重新計算V6.2正式估價",
   "results": [
@@ -38,7 +38,7 @@
       "market_low_unit_price": null,
       "market_high_unit_price": null,
       "agent_comment": "目前核心比較樣本不足，不建議直接將單一成交案例視為市場平均。目前價格僅可作為初步市場參考，建議補充更多同路段、相近坪數及相近建物型態的成交資料。",
-      "generated_at": "2026-08-22T03:27:25"
+      "generated_at": "2026-08-22T05:55:12"
     },
     {
       "listing_id": "591-20737737",
@@ -73,7 +73,7 @@
       "market_low_unit_price": null,
       "market_high_unit_price": null,
       "agent_comment": "目前核心比較樣本不足，不建議直接將單一成交案例視為市場平均。目前價格僅可作為初步市場參考，建議補充更多同路段、相近坪數及相近建物型態的成交資料。",
-      "generated_at": "2026-08-22T03:27:25"
+      "generated_at": "2026-08-22T05:55:12"
     },
     {
       "listing_id": "591-20489114",
@@ -108,7 +108,7 @@
       "market_low_unit_price": null,
       "market_high_unit_price": null,
       "agent_comment": "目前核心比較樣本不足，不建議直接將單一成交案例視為市場平均。目前價格僅可作為初步市場參考，建議補充更多同路段、相近坪數及相近建物型態的成交資料。",
-      "generated_at": "2026-08-22T03:27:25"
+      "generated_at": "2026-08-22T05:55:12"
     }
   ]
 }
