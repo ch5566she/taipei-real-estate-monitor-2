@@ -1,0 +1,31 @@
+{
+  "generated_at": "2026-08-22 15:50:50",
+  "source_file": "data/incoming_listings.csv",
+  "output_file": "data/raw_listings.csv",
+  "total_records": 10,
+  "pricing_core_complete_records": 3,
+  "pricing_core_complete_ratio": 0.3,
+  "source_time_known_records": 0,
+  "source_time_unknown_records": 10,
+  "stale_records_24h_or_more": 0,
+  "latest_source_collected_at": null,
+  "oldest_source_collected_at": null,
+  "average_source_age_hours": null,
+  "pricing_core_missing_fields": {
+    "listing_id": 0,
+    "district": 0,
+    "total_price": 0,
+    "building_area": 7
+  },
+  "enrichment_missing_fields": {
+    "location": 10,
+    "floor": 10,
+    "total_floor": 10,
+    "age": 10,
+    "building_type": 5,
+    "rooms": 2,
+    "url": 5
+  },
+  "overall_status": "SOURCE_TIME_UNKNOWN",
+  "status_note": "來源未提供 collected_at，無法判定房源是否為今日取得。"
+}
