@@ -1,0 +1,74 @@
+{
+  "source_file": "data/incoming_listings.csv",
+  "processed_at": "2026-08-22 18:07:47",
+  "total_listings": 10,
+  "quality_grade_counts": {
+    "C": 3,
+    "D": 7
+  },
+  "core_complete": 3,
+  "formal_pricing_candidates": 3,
+  "field_completeness": {
+    "listing_id": {
+      "present": 10,
+      "total": 10,
+      "rate": 1.0
+    },
+    "district": {
+      "present": 10,
+      "total": 10,
+      "rate": 1.0
+    },
+    "total_price": {
+      "present": 10,
+      "total": 10,
+      "rate": 1.0
+    },
+    "building_area": {
+      "present": 3,
+      "total": 10,
+      "rate": 0.3
+    },
+    "unit_price": {
+      "present": 3,
+      "total": 10,
+      "rate": 0.3
+    },
+    "location": {
+      "present": 0,
+      "total": 10,
+      "rate": 0.0
+    },
+    "floor": {
+      "present": 0,
+      "total": 10,
+      "rate": 0.0
+    },
+    "total_floors": {
+      "present": 0,
+      "total": 10,
+      "rate": 0.0
+    },
+    "rooms": {
+      "present": 8,
+      "total": 10,
+      "rate": 0.8
+    },
+    "age": {
+      "present": 0,
+      "total": 10,
+      "rate": 0.0
+    },
+    "building_type": {
+      "present": 5,
+      "total": 10,
+      "rate": 0.5
+    },
+    "url": {
+      "present": 5,
+      "total": 10,
+      "rate": 0.5
+    }
+  },
+  "source_note": "測試用資料品質驗證；不補猜缺失欄位。"
+}
