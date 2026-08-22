@@ -64,6 +64,32 @@ jobs:
 
 
       # ======================================================
+      # 02-2 房源來源 Ingest V54.3
+      # ======================================================
+
+      - name: "[02-2] Ingest Listing Source"
+        shell: bash
+        run: |
+          set -e
+
+          mkdir -p data/source_inbox
+
+          shopt -s nullglob
+          files=(data/source_inbox/*.csv)
+
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "ℹ️ 沒有新的房源來源 CSV，保留目前 incoming_listings.csv"
+            exit 0
+          fi
+
+          echo "✓ 發現 ${#files[@]} 個房源來源 CSV"
+
+          python listing_source_ingest_v54_3.py "${files[0]}"
+
+          echo "✓ 房源來源 Ingest 完成"
+
+
+      # ======================================================
       # 03 Python 檢查
       # ======================================================
 
