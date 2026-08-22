@@ -1,6 +1,6 @@
 {
   "source_file": "data/incoming_listings.csv",
-  "processed_at": "2026-08-22 19:08:44",
+  "processed_at": "2026-08-22 19:15:44",
   "total_listings": 10,
   "quality_grade_counts": {
     "C": 3,

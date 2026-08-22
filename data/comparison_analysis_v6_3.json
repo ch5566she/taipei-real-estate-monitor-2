@@ -1,7 +1,7 @@
 {
   "version": "V6.3.1",
   "stage": "第51階段｜房源資料品質 A-F 分級",
-  "generated_at": "2026-08-22T11:08:44",
+  "generated_at": "2026-08-22T11:15:44",
   "purpose": "V6.2價格決策結果之智慧分析、房源資料品質 A-F 分級與房仲判讀",
   "important_rule": "V6.3不重新計算V6.2正式估價",
   "results": [
@@ -47,7 +47,7 @@
       "data_quality_supplement_total": 7,
       "formal_valuation_eligible": "否",
       "formal_valuation_reason": "尚未進入 V6.2 正式估價流程，或 V6.2 沒有產生此物件的決策資料。",
-      "generated_at": "2026-08-22T11:08:44"
+      "generated_at": "2026-08-22T11:15:44"
     },
     {
       "listing_id": "591-20475937",
@@ -91,7 +91,7 @@
       "data_quality_supplement_total": 7,
       "formal_valuation_eligible": "否",
       "formal_valuation_reason": "尚未進入 V6.2 正式估價流程，或 V6.2 沒有產生此物件的決策資料。",
-      "generated_at": "2026-08-22T11:08:44"
+      "generated_at": "2026-08-22T11:15:44"
     },
     {
       "listing_id": "591-20489114",
@@ -135,7 +135,7 @@
       "data_quality_supplement_total": 7,
       "formal_valuation_eligible": "否",
       "formal_valuation_reason": "沒有可用可比樣本",
-      "generated_at": "2026-08-22T11:08:44"
+      "generated_at": "2026-08-22T11:15:44"
     },
     {
       "listing_id": "591-20588071",
@@ -179,7 +179,7 @@
       "data_quality_supplement_total": 7,
       "formal_valuation_eligible": "否",
       "formal_valuation_reason": "尚未進入 V6.2 正式估價流程，或 V6.2 沒有產生此物件的決策資料。",
-      "generated_at": "2026-08-22T11:08:44"
+      "generated_at": "2026-08-22T11:15:44"
     },
     {
       "listing_id": "591-20589416",
@@ -223,7 +223,7 @@
       "data_quality_supplement_total": 7,
       "formal_valuation_eligible": "否",
       "formal_valuation_reason": "沒有可用可比樣本",
-      "generated_at": "2026-08-22T11:08:44"
+      "generated_at": "2026-08-22T11:15:44"
     },
     {
       "listing_id": "591-20603808",
@@ -267,7 +267,7 @@
       "data_quality_supplement_total": 7,
       "formal_valuation_eligible": "否",
       "formal_valuation_reason": "尚未進入 V6.2 正式估價流程，或 V6.2 沒有產生此物件的決策資料。",
-      "generated_at": "2026-08-22T11:08:44"
+      "generated_at": "2026-08-22T11:15:44"
     },
     {
       "listing_id": "591-20624961",
@@ -311,7 +311,7 @@
       "data_quality_supplement_total": 7,
       "formal_valuation_eligible": "否",
       "formal_valuation_reason": "尚未進入 V6.2 正式估價流程，或 V6.2 沒有產生此物件的決策資料。",
-      "generated_at": "2026-08-22T11:08:44"
+      "generated_at": "2026-08-22T11:15:44"
     },
     {
       "listing_id": "591-20697551",
@@ -355,7 +355,7 @@
       "data_quality_supplement_total": 7,
       "formal_valuation_eligible": "否",
       "formal_valuation_reason": "尚未進入 V6.2 正式估價流程，或 V6.2 沒有產生此物件的決策資料。",
-      "generated_at": "2026-08-22T11:08:44"
+      "generated_at": "2026-08-22T11:15:44"
     },
     {
       "listing_id": "591-20701696",
@@ -399,7 +399,7 @@
       "data_quality_supplement_total": 7,
       "formal_valuation_eligible": "否",
       "formal_valuation_reason": "尚未進入 V6.2 正式估價流程，或 V6.2 沒有產生此物件的決策資料。",
-      "generated_at": "2026-08-22T11:08:44"
+      "generated_at": "2026-08-22T11:15:44"
     },
     {
       "listing_id": "591-20737737",
@@ -443,7 +443,7 @@
       "data_quality_supplement_total": 7,
       "formal_valuation_eligible": "否",
       "formal_valuation_reason": "沒有可用可比樣本",
-      "generated_at": "2026-08-22T11:08:44"
+      "generated_at": "2026-08-22T11:15:44"
     }
   ]
 }
