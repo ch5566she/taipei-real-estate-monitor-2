@@ -1120,7 +1120,7 @@ def _listing_is_active(row):
     return not any(x in text for x in blocked)
 
 def load_listings():
-    """讀取有效在售房源；資料不完整者保留並標記「資料待補」，不虛算價格。"""
+    """讀取可用的在售 CSV；找不到檔案時回傳空集合，不製造假案源。"""
     selected = None
     for path in LISTING_FILES:
         if os.path.exists(path):
@@ -1141,6 +1141,7 @@ def load_listings():
                 ]) or "").strip()
                 if district not in TARGET_DISTRICTS:
                     continue
+
                 if not _listing_is_active(row):
                     continue
 
@@ -1157,10 +1158,6 @@ def load_listings():
                     if route_candidate:
                         route = route_candidate
 
-                listing_id = str(_first_value(row, [
-                    "listing_id", "id", "591_id", "物件編號", "_id"
-                ]) or "").strip()
-
                 total_price = to_float(_first_value(row, [
                     "asking_price", "total_price", "price", "tprice", "總價", "開價", "售價"
                 ]))
@@ -1171,27 +1168,14 @@ def load_listings():
                     "asking_unit_price", "unit_price", "uprice", "單價", "每坪單價", "開價單價"
                 ]))
 
-                # 只有在兩個必要數值都存在時才反推，絕不猜測坪數。
                 if unit_price is None and total_price is not None and area and area > 0:
                     unit_price = total_price / area
+
                 if total_price is None and unit_price is not None and area and area > 0:
                     total_price = unit_price * area
 
-                missing_fields = []
-                if total_price is None or total_price <= 0:
-                    missing_fields.append("總價")
-                if area is None or area <= 0:
-                    missing_fields.append("建物坪數")
-                if unit_price is None or unit_price <= 0:
-                    missing_fields.append("單價")
-
-                analysis_ready = not missing_fields
-                data_status = "完整" if analysis_ready else "資料待補"
-                data_note = (
-                    "資料完整，可進行開價與成交行情比較"
-                    if analysis_ready
-                    else "缺少：" + "、".join(missing_fields) + "；暫不進行正式價格推估"
-                )
+                if unit_price is None or unit_price <= 0 or area is None or area <= 0:
+                    continue
 
                 listing_date = _first_value(row, [
                     "listing_date", "publish_date", "date", "created_at", "上架日期", "更新日期"
@@ -1208,11 +1192,12 @@ def load_listings():
                 rooms = str(_first_value(row, [
                     "rooms", "room", "bedrooms", "格局", "房數"
                 ]) or "").strip()
-                age = to_float(_first_value(row, ["age", "building_age", "屋齡"]))
+                age = to_float(_first_value(row, [
+                    "age", "building_age", "屋齡"
+                ]))
 
                 listings.append({
                     "row": row,
-                    "listing_id": listing_id,
                     "district": district,
                     "route": route,
                     "location": location,
@@ -1225,35 +1210,13 @@ def load_listings():
                     "build_type": build_type,
                     "rooms": rooms,
                     "age": age,
-                    "analysis_ready": analysis_ready,
-                    "data_status": data_status,
-                    "missing_fields": missing_fields,
-                    "data_note": data_note,
                 })
     except (OSError, csv.Error, UnicodeDecodeError) as exc:
         print(f"第17階段：讀取在售物件資料失敗：{exc}")
         return [], selected
 
-    total_count = len(listings)
-    analysis_ready_count = sum(1 for item in listings if item.get("analysis_ready"))
-    data_pending_count = total_count - analysis_ready_count
-
-    print(f"第17階段：有效在售房源 {total_count:,} 筆，來源：{selected}")
-    print(f"第17階段：可完整價格分析 {analysis_ready_count:,} 筆")
-    print(f"第17階段：資料待補 {data_pending_count:,} 筆")
-
-    for item in listings:
-        if not item.get("analysis_ready"):
-            print(
-                "第17階段｜資料待補："
-                f"{item.get('listing_id') or '無ID'}｜"
-                f"{item.get('title') or item.get('location') or '未命名'}｜"
-                f"{item.get('data_note')}"
-            )
-
+    print(f"第17階段：讀取在售物件 {len(listings):,} 筆，來源：{selected}")
     return listings, selected
-
-
 
 def build_stage16_property_radar(records, report):
     """
@@ -1462,16 +1425,13 @@ def build_stage16_property_board(report):
     """
 
 def build_stage17_listing_radar(listings, records, report, source_path=None):
-    """目前在售物件與近期成交／路段熱度交叉比對；不完整房源保留但不虛算價格。"""
+    """目前在售物件與近期成交／路段熱度交叉比對。"""
     if not listings:
         return {
             "source": source_path,
             "count": 0,
-            "analysis_ready_count": 0,
-            "data_pending_count": 0,
             "connected": False,
             "top10": [],
-            "data_pending": [],
             "note": "尚未接入目前在售物件資料；目前報告不判定任何個別在售物件。",
         }
 
@@ -1480,11 +1440,10 @@ def build_stage17_listing_radar(listings, records, report, source_path=None):
     route_count = {}
     for item in records:
         key = (item.get("district"), item.get("route") or "未知路段")
-        price = to_float(item.get("unit_price"))
-        if price is not None and price > 0:
-            route_prices.setdefault(key, []).append(price)
+        route_prices.setdefault(key, []).append(float(item.get("unit_price") or 0))
         route_count[key] = route_count.get(key, 0) + 1
 
+    # 使用目前報告已算好的路段熱度／開發分數；若沒有則退回成交筆數。
     for district, data in report.get("districts", {}).items():
         for route in data.get("route_monitor", []) or []:
             key = (district, route.get("route") or "未知路段")
@@ -1494,31 +1453,22 @@ def build_stage17_listing_radar(listings, records, report, source_path=None):
         district: to_float(data.get("stats", {}).get("median_price"))
         for district, data in report.get("districts", {}).items()
     }
+
     max_heat = max(route_heat.values()) if route_heat else 0
     candidates = []
-
     for item in listings:
         key = (item.get("district"), item.get("route") or "未知路段")
         prices = [p for p in route_prices.get(key, []) if p > 0]
         route_median = median(prices) if prices else None
         district_median = district_medians.get(item.get("district"))
-        ask = to_float(item.get("unit_price"))
-        if ask is not None and ask <= 0:
-            ask = None
+        ask = float(item.get("unit_price") or 0)
 
-        analysis_ready = bool(item.get("analysis_ready"))
-        missing_fields = item.get("missing_fields", []) or []
+        route_gap = None if not route_median else (ask - route_median) / route_median * 100
+        district_gap = None if not district_median else (ask - district_median) / district_median * 100
 
-        route_gap = None
-        district_gap = None
-        if ask is not None and route_median is not None and route_median > 0:
-            route_gap = (ask - route_median) / route_median * 100
-        if ask is not None and district_median is not None and district_median > 0:
-            district_gap = (ask - district_median) / district_median * 100
-
-        # 完整資料才給價格機會分；資料不足不虛算。
-        if not analysis_ready or route_gap is None:
-            price_score = 0
+        # 40分價格機會：越接近或低於成交中位數越高；明顯高於市場則降分。
+        if route_gap is None:
+            price_score = 12
         elif route_gap <= -20:
             price_score = 40
         elif route_gap <= -10:
@@ -1534,12 +1484,14 @@ def build_stage17_listing_radar(listings, records, report, source_path=None):
         else:
             price_score = 3
 
+        # 25分路段熱度。
         heat = route_heat.get(key, 0)
         if max_heat > 0:
             heat_score = min(25, heat / max_heat * 25)
         else:
             heat_score = min(25, route_count.get(key, 0) * 3)
 
+        # 20分資料完整度／可操作性。
         completeness = 0
         if item.get("location") or item.get("route") not in ("其他", "未知路段"):
             completeness += 5
@@ -1552,25 +1504,19 @@ def build_stage17_listing_radar(listings, records, report, source_path=None):
         if item.get("url"):
             completeness += 3
 
+        # 15分成交樣本量與同路段可比性。
         sample = route_count.get(key, 0)
         sample_score = min(15, sample * 2.5)
-        score = round(min(100, price_score + heat_score + completeness + sample_score), 1)
 
-        if not analysis_ready:
-            priority = "D｜資料待補"
-        elif score >= 75:
-            priority = "A｜優先研究"
-        elif score >= 60:
-            priority = "B｜本週追蹤"
-        else:
-            priority = "C｜持續觀察"
+        score = round(min(100, price_score + heat_score + completeness + sample_score), 1)
+        priority = "A｜優先研究" if score >= 75 else "B｜本週追蹤" if score >= 60 else "C｜持續觀察"
 
         reasons = []
         actions = []
-        if analysis_ready and route_gap is not None and route_gap <= -10:
+        if route_gap is not None and route_gap <= -10:
             reasons.append(f"開價低於同路段成交中位價{abs(route_gap):.1f}%")
             actions.append("優先檢查同類型成交條件與產品差異")
-        elif analysis_ready and route_gap is not None and route_gap >= 15:
+        elif route_gap is not None and route_gap >= 15:
             reasons.append(f"開價高於同路段成交中位價{route_gap:.1f}%")
             actions.append("列為高開價競品，觀察議價與銷售週期")
         if route_count.get(key, 0) >= 4:
@@ -1579,22 +1525,15 @@ def build_stage17_listing_radar(listings, records, report, source_path=None):
         if heat >= max_heat * 0.5 and max_heat > 0:
             reasons.append("所在路段屬高熱度路段")
             actions.append("列入每日重點追蹤")
-        if analysis_ready and district_gap is not None and abs(district_gap) >= 15:
+        if district_gap is not None and abs(district_gap) >= 15:
             reasons.append(f"與行政區中位價偏離{district_gap:+.1f}%")
             actions.append("再用屋齡、樓層、格局、車位修正比較")
-        if not analysis_ready:
-            reasons.append("房源有效，但目前資料不足，無法進行正式價格比較")
-            if missing_fields:
-                reasons.append("缺少：" + "、".join(missing_fields))
-            actions.append("優先補齊房源坪數／單價")
-            actions.append("補齊後再進行 V6.2／V6.3 分析")
         if not reasons:
-            reasons.append("已有在售資料，可持續追蹤")
+            reasons.append("已有在售資料且可與成交行情交叉比對")
         if not actions:
             actions.append("持續追蹤價格與成交變化")
 
         candidates.append({
-            "listing_id": item.get("listing_id"),
             "district": item.get("district"),
             "route": item.get("route"),
             "location": item.get("location"),
@@ -1614,57 +1553,27 @@ def build_stage17_listing_radar(listings, records, report, source_path=None):
             "route_transaction_count": sample,
             "score": score,
             "priority": priority,
-            "analysis_ready": analysis_ready,
-            "data_status": item.get("data_status", "完整" if analysis_ready else "資料待補"),
-            "missing_fields": missing_fields,
-            "data_note": item.get("data_note", ""),
             "reasons": reasons[:4],
             "actions": actions[:3],
         })
 
-    # 完整資料優先，但資料待補房源仍保留在 Top10。
-    candidates.sort(
-        key=lambda x: (
-            1 if x.get("analysis_ready") else 0,
-            x.get("score", 0),
-            -(abs(x.get("route_gap")) if x.get("route_gap") is not None else 999),
-        ),
-        reverse=True,
-    )
-
-    top10 = candidates[:10]
-    for idx, item in enumerate(top10, 1):
+    candidates.sort(key=lambda x: (x["score"], -(abs(x["route_gap"]) if x.get("route_gap") is not None else 999)), reverse=True)
+    for idx, item in enumerate(candidates[:10], 1):
         item["rank"] = idx
-
-    data_pending = [x for x in candidates if not x.get("analysis_ready")]
-    analysis_ready_count = sum(1 for x in candidates if x.get("analysis_ready"))
-
-    print(f"第17階段：雷達有效房源 {len(candidates):,} 筆")
-    print(f"第17階段：完整分析 {analysis_ready_count:,} 筆")
-    print(f"第17階段：資料待補 {len(data_pending):,} 筆")
 
     return {
         "source": source_path,
         "count": len(listings),
-        "analysis_ready_count": analysis_ready_count,
-        "data_pending_count": len(data_pending),
         "connected": True,
-        "top10": top10,
-        "data_pending": data_pending,
+        "top10": candidates[:10],
         "note": "在售物件多數屬市場競品資料；除非來源明確提供屋主資訊，系統不判定屋主身份。價格比較亦非正式估價。",
     }
 
-
-
 def build_stage17_listing_board(report):
-    """第17階段網頁報告；完整房源做價格分析，資料不足房源保留並標示資料待補。"""
     data = report.get("listing_radar") or {}
     top10 = data.get("top10", []) or []
     count = int(data.get("count") or 0)
-    analysis_ready_count = int(data.get("analysis_ready_count") or 0)
-    data_pending_count = int(data.get("data_pending_count") or 0)
     source = data.get("source") or "尚未找到在售 CSV"
-
     if not data.get("connected"):
         return f"""
         <section class="stage17">
@@ -1680,33 +1589,14 @@ def build_stage17_listing_board(report):
         </section>
         """
 
-    if not top10:
-        return f"""
-        <section class="stage17">
-            <h2>🔥 第17階段｜今日房仲在售物件開發雷達</h2>
-            <div class="stage17-summary-grid">
-                <div class="stage17-summary-card"><div class="stage17-summary-title">🏠 有效在售</div><strong>{count:,} 筆</strong></div>
-                <div class="stage17-summary-card"><div class="stage17-summary-title">📊 完整分析</div><strong>{analysis_ready_count:,} 筆</strong></div>
-                <div class="stage17-summary-card"><div class="stage17-summary-title">⚠️ 資料待補</div><strong>{data_pending_count:,} 筆</strong></div>
-            </div>
-            <div class="stage17-note">目前沒有足夠資料建立 Top 10；系統不捏造任何房源。</div>
-        </section>
-        """
-
     rows = []
     for x in top10:
         route_median = "—" if x.get("route_median") is None else f"{x['route_median']:.2f}"
         gap = "—" if x.get("route_gap") is None else f"{x['route_gap']:+.1f}%"
         total = "—" if x.get("total_price") is None else f"{x['total_price']:,.0f}"
         area = "—" if x.get("area") is None else f"{x['area']:.1f}"
-        unit_price = "—" if x.get("unit_price") is None else f"{x['unit_price']:.2f}"
         reason = "；".join(x.get("reasons", [])[:2])
         title = x.get("title") or x.get("location") or x.get("route") or "未命名物件"
-        if x.get("analysis_ready"):
-            status = "完整"
-        else:
-            missing = "、".join(x.get("missing_fields", []) or [])
-            status = "資料待補" + (f"｜缺少：{missing}" if missing else "")
         rows.append(f"""
         <tr>
             <td><strong>#{x['rank']}</strong></td>
@@ -1714,94 +1604,55 @@ def build_stage17_listing_board(report):
             <td>{html_escape(x.get('route'))}<br><small>{html_escape(title)}</small></td>
             <td>{total}</td>
             <td>{area}</td>
-            <td>{unit_price}</td>
+            <td>{x['unit_price']:.2f}</td>
             <td>{route_median}</td>
             <td>{gap}</td>
-            <td>{x.get('route_transaction_count', 0)}筆<br>{x.get('route_heat', 0):.2f}</td>
-            <td><strong>{x.get('score', 0):.1f}</strong><br><small>{html_escape(x.get('priority', ''))}</small></td>
-            <td>{html_escape(status)}<br><small>{html_escape(reason)}</small></td>
+            <td>{x['route_transaction_count']}筆<br>{x['route_heat']:.2f}</td>
+            <td><strong>{x['score']:.1f}</strong><br><small>{html_escape(x['priority'])}</small></td>
+            <td>{html_escape(reason)}</td>
         </tr>
         """)
 
     focus = top10[0]
     focus_reason = "；".join(focus.get("reasons", [])[:3])
     focus_action = "；".join(focus.get("actions", [])[:3])
-    focus_unit = "—" if focus.get("unit_price") is None else f"{focus['unit_price']:.2f} 萬／坪"
-    focus_median = "—" if focus.get("route_median") is None else f"{focus['route_median']:.2f} 萬／坪"
-    focus_gap = "—" if focus.get("route_gap") is None else f"{focus['route_gap']:+.1f}%"
-    focus_status = "完整，可進行價格比較" if focus.get("analysis_ready") else (
-        "資料待補" + ("｜缺少：" + "、".join(focus.get("missing_fields", []) or []) if focus.get("missing_fields") else "")
-    )
     url_html = ""
     if focus.get("url"):
         url_html = f'<br><a href="{html_escape(focus["url"])}" target="_blank" rel="noopener">查看物件來源</a>'
-
-    pending_rows = []
-    for x in top10:
-        if x.get("analysis_ready"):
-            continue
-        missing = "、".join(x.get("missing_fields", []) or []) or "—"
-        total = "—" if x.get("total_price") is None else f"{x['total_price']:,.0f}"
-        pending_rows.append(f"""
-        <tr>
-            <td>{html_escape(x.get('listing_id') or '—')}</td>
-            <td>{html_escape(x.get('district'))}</td>
-            <td>{html_escape(x.get('title') or x.get('location') or '未命名物件')}</td>
-            <td>{total}</td>
-            <td>{html_escape(missing)}</td>
-            <td>資料待補</td>
-        </tr>
-        """)
-    pending_html = ""
-    if pending_rows:
-        pending_html = f"""
-        <div class="stage17-pending">
-            <h3>⚠️ Top 10 中的資料待補房源</h3>
-            <p>房源仍屬有效在售資料，但目前缺少價格分析必要欄位；系統不虛算市場價格。</p>
-            <div class="table-scroll">
-                <table class="stage17-table">
-                    <tr><th>591 ID</th><th>行政區</th><th>物件</th><th>總價</th><th>缺少欄位</th><th>狀態</th></tr>
-                    {''.join(pending_rows)}
-                </table>
-            </div>
-        </div>
-        """
 
     return f"""
     <section class="stage17">
         <h2>🔥 第17階段｜今日房仲在售物件開發雷達 Top 10</h2>
         <div class="stage17-summary-grid">
-            <div class="stage17-summary-card"><div class="stage17-summary-title">🏠 有效在售</div><strong>{count:,} 筆</strong><small>來源：{html_escape(source)}</small></div>
-            <div class="stage17-summary-card"><div class="stage17-summary-title">📊 可完整價格分析</div><strong>{analysis_ready_count:,} 筆</strong><small>可進行行情比較</small></div>
-            <div class="stage17-summary-card"><div class="stage17-summary-title">⚠️ 資料待補</div><strong>{data_pending_count:,} 筆</strong><small>保留房源、不虛算</small></div>
+            <div class="stage17-summary-card"><div class="stage17-summary-title">🏠 在售資料</div><strong>{count:,} 筆</strong><small>來源：{html_escape(source)}</small></div>
+            <div class="stage17-summary-card"><div class="stage17-summary-title">🎯 第一優先</div><strong>{focus['score']:.1f}</strong><small>{html_escape(focus['district'])}｜{html_escape(focus['route'])}</small></div>
+            <div class="stage17-summary-card"><div class="stage17-summary-title">📊 比價基準</div><strong>{'可比' if focus.get('route_median') is not None else '不足'}</strong><small>同路段成交中位價</small></div>
         </div>
         <div class="stage17-focus">
             <strong>🎯 今日第一優先物件：</strong>
             {html_escape(focus.get('district'))} × {html_escape(focus.get('route'))} × {html_escape(focus.get('title') or focus.get('location') or '未命名物件')}<br>
-            <strong>資料狀態：</strong>{html_escape(focus_status)}<br>
-            <strong>開價：</strong>{focus_unit}；
-            <strong>同路段成交中位價：</strong>{focus_median}；
-            <strong>價格偏離：</strong>{focus_gap}；
-            <strong>開發分數：</strong>{focus.get('score', 0):.1f}<br>
+            <strong>開價：</strong>{focus['unit_price']:.2f} 萬／坪；
+            <strong>同路段成交中位價：</strong>{'—' if focus.get('route_median') is None else f"{focus['route_median']:.2f} 萬／坪"}；
+            <strong>價格偏離：</strong>{'—' if focus.get('route_gap') is None else f"{focus['route_gap']:+.1f}%"}；
+            <strong>開發分數：</strong>{focus['score']:.1f}<br>
             <strong>為什麼：</strong>{html_escape(focus_reason)}<br>
             <strong>建議：</strong>{html_escape(focus_action)}{url_html}
         </div>
         <div class="table-scroll">
         <table class="stage17-table">
-            <tr><th>排名</th><th>行政區</th><th>路段／物件</th><th>總價</th><th>坪數</th><th>目前開價</th><th>成交中位</th><th>價格偏離</th><th>路段熱度</th><th>開發分數</th><th>開發訊號</th></tr>
+            <tr>
+                <th>排名</th><th>行政區</th><th>路段／物件</th><th>總價</th><th>坪數</th>
+                <th>目前開價</th><th>成交中位</th><th>價格偏離</th><th>路段熱度</th><th>開發分數</th><th>開發訊號</th>
+            </tr>
             {''.join(rows)}
         </table>
         </div>
-        {pending_html}
         <div class="stage17-note">
             📌 本階段是「目前在售物件的市場機會／競品研究排序」，不是單一物件正式估價，也不是屋主身份判定。<br>
-            📌 完整資料房源才會進行開價與成交行情價格比較；資料不足房源仍保留於房源清單，但不虛算市場價格。<br>
             若資料來源是仲介公開物件，系統會將其視為市場競品；只有來源明確標示屋主資訊時，才可另行處理聯絡資訊。
         </div>
     </section>
     """
-
-
 
 def calculate_window_change(months, window):
     """
@@ -4044,17 +3895,6 @@ def create_html(report):
                 f"{change:+.2f}%"
             )
 
-        trend_window_changes = {}
-        for _window in (3, 6, 12):
-            _change = (
-                data.get("trend_windows", {})
-                .get(str(_window), {})
-                .get("change")
-            )
-            trend_window_changes[_window] = (
-                "—" if _change is None else f"{_change:+.2f}%"
-            )
-
         cards += f"""
         <section class="district">
 
@@ -4140,15 +3980,15 @@ def create_html(report):
                 <div class="mini-period-grid">
                     <div class="mini-period">
                         <span>近3月</span>
-                        <strong>{trend_window_changes[3]}</strong>
+                        <strong>{(data.get("trend_windows", {}).get("3", {}).get("change") is None and "—") or f"{data.get("trend_windows", {}).get("3", {}).get("change"):+.2f}%"}</strong>
                     </div>
                     <div class="mini-period">
                         <span>近6月</span>
-                        <strong>{trend_window_changes[6]}</strong>
+                        <strong>{(data.get("trend_windows", {}).get("6", {}).get("change") is None and "—") or f"{data.get("trend_windows", {}).get("6", {}).get("change"):+.2f}%"}</strong>
                     </div>
                     <div class="mini-period">
                         <span>近12月</span>
-                        <strong>{trend_window_changes[12]}</strong>
+                        <strong>{(data.get("trend_windows", {}).get("12", {}).get("change") is None and "—") or f"{data.get("trend_windows", {}).get("12", {}).get("change"):+.2f}%"}</strong>
                     </div>
                 </div>
             </div>
